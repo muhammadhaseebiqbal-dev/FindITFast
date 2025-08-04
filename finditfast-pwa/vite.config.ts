@@ -21,7 +21,7 @@ export default defineConfig({
         name: 'FindItFast - Store Item Locator',
         short_name: 'FindItFast',
         description: 'Find items quickly in stores with interactive floorplans. Navigate to stores and locate products instantly.',
-        theme_color: '#3B82F6',
+        theme_color: '#374151',
         background_color: '#FFFFFF',
         display: 'standalone',
         orientation: 'portrait-primary',

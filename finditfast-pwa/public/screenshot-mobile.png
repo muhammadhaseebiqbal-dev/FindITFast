@@ -1,0 +1,4 @@
+# This is a placeholder for the mobile screenshot
+# In a real implementation, this would be a PNG image file showing the app's interface
+# The screenshot should be 375x812 pixels and show the main search/floorplan interface
+# You can generate this by taking a screenshot of the app running on mobile or use a tool like Playwright

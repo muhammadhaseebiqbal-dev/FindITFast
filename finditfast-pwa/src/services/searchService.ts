@@ -1,4 +1,5 @@
 import { ItemService, StoreService } from './firestoreService';
+import { trackSearch } from './analyticsService';
 // Import types are used in JSDoc comments and type annotations
 import type { SearchResult, SearchHistory } from '../types/search';
 
@@ -45,6 +46,17 @@ export class SearchService {
 
       // Rank and sort results
       const rankedResults = this.rankSearchResults(searchResults);
+
+      // Track search analytics
+      try {
+        trackSearch({
+          searchQuery: query,
+          resultsCount: rankedResults.length,
+          location: userLocation
+        });
+      } catch (error) {
+        console.log('Analytics tracking failed:', error);
+      }
 
       // Save search to history
       this.saveSearchToHistory(query);

@@ -1,4 +1,6 @@
 import React from 'react';
+import { TouchArea } from '../common/MobileLayout';
+import { LazyImage } from '../performance/LazyLoading';
 import type { SearchResult } from '../../types/search';
 
 interface ResultCardProps {
@@ -36,24 +38,11 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result, onClick }) => {
     }
   };
 
-  const handleClick = () => {
-    onClick(result);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      onClick(result);
-    }
-  };
-
   return (
-    <div
-      className="result-card cursor-pointer"
-      onClick={handleClick}
-      onKeyDown={handleKeyDown}
-      tabIndex={0}
-      role="button"
+    <TouchArea
+      variant="card"
+      onClick={() => onClick(result)}
+      className="w-full p-6 space-y-4"
       aria-label={`View ${result.name} at ${result.store.name}`}
     >
       <div className="flex items-start justify-between">
@@ -92,9 +81,9 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result, onClick }) => {
             <div className="flex items-center gap-6">
               {result.distance && (
                 <span className="flex items-center gap-2 text-body">
-                  <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center">
                     <svg 
-                      className="w-4 h-4 text-blue-600" 
+                      className="w-4 h-4 text-gray-600" 
                       fill="none" 
                       stroke="currentColor" 
                       viewBox="0 0 24 24"
@@ -122,7 +111,7 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result, onClick }) => {
             {result.price && (
               <div className="text-right">
                 <p className="text-2xl font-bold text-accent">
-                  ${formatPrice(result.price)}
+                  {formatPrice(result.price)}
                 </p>
               </div>
             )}
@@ -141,15 +130,12 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result, onClick }) => {
         {/* Item Image */}
         {result.imageUrl && (
           <div className="ml-4 flex-shrink-0">
-            <img
+            <LazyImage
               src={result.imageUrl}
               alt={result.name}
+              width={64}
+              height={64}
               className="w-16 h-16 object-cover rounded-lg border border-gray-200"
-              loading="lazy"
-              onError={(e) => {
-                // Hide image if it fails to load
-                e.currentTarget.style.display = 'none';
-              }}
             />
           </div>
         )}
@@ -157,7 +143,7 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result, onClick }) => {
 
       {/* Report Count Warning */}
       {result.reportCount > 0 && (
-        <div className="mt-3 pt-3 border-t border-gray-100">
+        <div className="pt-3 border-t border-gray-100">
           <p className="text-xs text-amber-600 flex items-center gap-1">
             <svg 
               className="w-3 h-3" 
@@ -175,6 +161,6 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result, onClick }) => {
           </p>
         </div>
       )}
-    </div>
+    </TouchArea>
   );
 };

@@ -10,10 +10,19 @@
     "preview": "vite preview",
     "test": "vitest --run",
     "test:watch": "vitest",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "test:populate": "node scripts/populate-test-data.js",
+    "test:clean": "node scripts/clean-test-data.js",
+    "test:clean:all": "node scripts/clean-test-data.js --nuclear",
+    "test:status": "node scripts/test-data-manager.js status",
+    "test:manager": "node scripts/test-data-manager.js",
+    "test:demo": "node scripts/demo-populate.js",
+    "test:store-request": "node scripts/create-test-store-request.js",
+    "admin:create": "node scripts/create-app-admin.js"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.11",
+    "dotenv": "^17.2.1",
     "firebase": "^12.0.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

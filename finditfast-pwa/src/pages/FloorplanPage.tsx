@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { FloorplanViewer } from '../components/floorplan/FloorplanViewer';
+import { MobileLayout, MobileHeader, MobileContent } from '../components/common/MobileLayout';
+import { GestureHandler } from '../components/common/MobileInteraction';
+import { useViewport, useOrientation } from '../hooks/useResponsive';
 import { firestoreService } from '../services/firestoreService';
 import type { Store, Item } from '../types';
 
@@ -8,6 +11,8 @@ export const FloorplanPage: React.FC = () => {
   const { storeId } = useParams<{ storeId: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { isLandscape } = useOrientation();
+  const { isMobile } = useViewport();
   
   const [store, setStore] = useState<Store | null>(null);
   const [items, setItems] = useState<Item[]>([]);
@@ -153,41 +158,34 @@ export const FloorplanPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-md mx-auto px-4 py-4">
-          <div className="flex items-center">
-            <button
-              onClick={handleBack}
-              className="p-2 -ml-2 rounded-lg hover:bg-gray-100 transition-colors"
-              aria-label="Go back"
-            >
-              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <div className="ml-4 min-w-0 flex-1">
-              <h1 className="text-xl font-semibold text-gray-900 truncate">{store.name}</h1>
-              <p className="text-sm text-gray-600 truncate">{store.address}</p>
-            </div>
-          </div>
-        </div>
-      </header>
+    <MobileLayout className={`${isLandscape ? 'landscape:flex landscape:flex-row' : ''}`}>
+      <MobileHeader
+        title={store.name}
+        subtitle={store.address}
+        showBack={true}
+        onBack={handleBack}
+      />
       
-      <main className="max-w-md mx-auto px-4 py-6">
-        <FloorplanViewer
-          store={store}
-          items={items}
-          selectedItemId={selectedItemId}
-          onItemSelect={handleItemSelect}
-          className="mb-6"
-        />
+      <MobileContent className="flex-1 space-y-6">
+        <GestureHandler
+          onSwipeRight={handleBack}
+          onDoubleTap={() => setSelectedItemId(undefined)}
+          className="h-full"
+        >
+          <FloorplanViewer
+            store={store}
+            items={items}
+            selectedItemId={selectedItemId}
+            onItemSelect={handleItemSelect}
+            className="rounded-2xl overflow-hidden shadow-lg"
+          />
+        </GestureHandler>
 
-        {/* Help Text */}
-        {!selectedItemId && items.length > 0 && (
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+        {/* Mobile-optimized Help Text */}
+        {!selectedItemId && items.length > 0 && isMobile && (
+          <div className="p-4 bg-blue-50/80 backdrop-blur-sm rounded-2xl border border-blue-200/50">
             <div className="flex items-start gap-3">
-              <div className="w-5 h-5 text-blue-600 mt-0.5">
+              <div className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0">
                 <svg fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                 </svg>
@@ -195,13 +193,13 @@ export const FloorplanPage: React.FC = () => {
               <div>
                 <h3 className="text-sm font-medium text-blue-900 mb-1">How to use</h3>
                 <p className="text-sm text-blue-800">
-                  Tap on any red pin to see detailed information about that item, including price and verification status.
+                  Tap on the red pins to see item details. Swipe right to go back or double-tap to clear selection.
                 </p>
               </div>
             </div>
           </div>
         )}
-      </main>
-    </div>
+      </MobileContent>
+    </MobileLayout>
   );
 };

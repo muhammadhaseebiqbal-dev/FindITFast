@@ -63,10 +63,22 @@ export interface StoreRequest {
     latitude: number;
     longitude: number;
   };
-  requestedBy?: string;
+  requestedBy: string; // Always required to match Firestore rules
+  ownerId?: string;    // For backward compatibility
+  ownerName?: string;
+  ownerEmail?: string;
   notes?: string;
   requestedAt: Date;
   status: 'pending' | 'approved' | 'rejected';
+  approvedAt?: Date;
+  rejectedAt?: Date;
+  approvedBy?: string;
+  rejectedBy?: string;
+  uploadedFiles?: Array<{
+    name: string;
+    url: string;
+    size: number;
+  }>;
 }
 
 // Re-export permission types

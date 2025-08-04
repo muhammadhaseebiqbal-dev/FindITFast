@@ -37,7 +37,7 @@ const sleep = (ms: number): Promise<void> =>
   new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * Retry wrapper for async operations
+ * Retry wrapper for async operations with enhanced error handling
  */
 const withRetry = async <T>(
   operation: () => Promise<T>,
@@ -50,6 +50,11 @@ const withRetry = async <T>(
       return await operation();
     } catch (error) {
       lastError = error instanceof Error ? error : new Error('Unknown error');
+      
+      // Check for CORS errors specifically
+      if (lastError.message.includes('CORS') || lastError.message.includes('fetch')) {
+        throw new Error('Upload failed due to storage configuration. Please contact support or try again later.');
+      }
       
       if (attempt === config.maxRetries) {
         throw lastError;
@@ -170,16 +175,28 @@ export class StorageService {
 
 // Specific methods for different file types
 export const FloorplanService = {
-  upload: (file: File, storeId: string, onProgress?: (progress: number) => void) =>
-    StorageService.uploadCompressedImage(
+  upload: (file: File, storeId: string, onProgress?: (progress: number) => void) => {
+    // Use a safe path pattern that doesn't require database validation
+    const path = storeId.startsWith('temp_') 
+      ? `floorplans/temp/${storeId}/floorplan.jpg`
+      : `stores/${storeId}/floorplan.jpg`;
+    
+    return StorageService.uploadCompressedImage(
       file,
-      `stores/${storeId}/floorplan.jpg`,
-      800,
-      800,
-      0.7,
+      path,
+      1200, // Higher resolution for floorplans
+      1200,
+      0.8,  // Higher quality for floorplans
       onProgress
-    ),
-  delete: (storeId: string) => StorageService.deleteFile(`stores/${storeId}/floorplan.jpg`),
+    );
+  },
+  delete: (storeId: string) => {
+    const path = storeId.startsWith('temp_') 
+      ? `floorplans/temp/${storeId}/floorplan.jpg`
+      : `stores/${storeId}/floorplan.jpg`;
+    
+    return StorageService.deleteFile(path);
+  },
 };
 
 export const ItemImageService = {

@@ -6,6 +6,12 @@ service firebase.storage {
       return request.auth != null;
     }
     
+    function isAdmin() {
+      return isAuthenticated() && 
+             (request.auth.token.email == 'admin@finditfast.com' ||
+              exists(/databases/(default)/documents/admins/$(request.auth.uid)));
+    }
+    
     function isStoreOwner() {
       return isAuthenticated() && 
              exists(/databases/(default)/documents/storeOwners/$(request.auth.uid));
@@ -23,13 +29,36 @@ service firebase.storage {
              request.resource.size < 10 * 1024 * 1024; // 10MB limit
     }
 
+    // Global admin access rule
+    match /{allPaths=**} {
+      allow read, write: if isAdmin();
+    }
+
+    // Temporary uploads for authenticated users (during floorplan upload process)
+    match /floorplans/temp/temp_{userId}/floorplan.jpg {
+      // Only the authenticated user can upload to their temp folder
+      allow read, write: if isAuthenticated() && request.auth.uid == userId && isValidImageFile();
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // All floorplans (temp and permanent)
+    match /floorplans/{allPaths=**} {
+      // Anyone can read floorplans
+      allow read: if true;
+      
+      // Authenticated users can upload floorplans
+      allow write: if isAuthenticated() && isValidImageFile();
+      allow delete: if isAuthenticated();
+    }
+
     // Store floorplans
     match /stores/{storeId}/floorplan.jpg {
       // Anyone can read floorplans
       allow read: if true;
       
-      // Only store owners can upload/update their floorplans
-      allow write: if isOwnerOfStore(storeId) && isValidImageFile();
+      // Store owners can upload/update their floorplans, or authenticated users for temp uploads
+      allow write: if (isAuthenticated() && isStoreOwner() && isValidImageFile()) ||
+                      isOwnerOfStore(storeId);
       
       // Only store owners can delete their floorplans
       allow delete: if isOwnerOfStore(storeId);
@@ -49,7 +78,14 @@ service firebase.storage {
       allow delete: if isOwnerOfStore(storeId);
     }
 
-    // Deny all other paths
+    // Store request documents
+    match /store-requests/{requestId}/{fileName} {
+      // Only authenticated users can upload documents for their requests
+      allow read, write: if isAuthenticated() && isValidImageFile();
+      allow delete: if isAuthenticated();
+    }
+
+    // Fallback: deny all other paths
     match /{allPaths=**} {
       allow read, write: if false;
     }

@@ -1,15 +1,18 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { CompleteOwnerRegistration } from './CompleteOwnerRegistration';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requireOwner?: boolean;
+  allowAdmin?: boolean;
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
   children, 
-  requireOwner = false 
+  requireOwner = false,
+  allowAdmin = false
 }) => {
   const { user, ownerProfile, loading } = useAuth();
   const location = useLocation();
@@ -28,39 +31,22 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Redirect to auth page if not authenticated
   if (!user) {
-    return <Navigate to="/owner/auth" state={{ from: location }} replace />;
+    // Redirect to appropriate auth page based on route
+    const redirectTo = location.pathname.startsWith('/admin') ? '/admin/auth' : '/owner/auth';
+    return <Navigate to={redirectTo} state={{ from: location }} replace />;
   }
 
-  // If owner profile is required but not found, show error
-  if (requireOwner && !ownerProfile) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
-          <div className="text-center">
-            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
-              <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-              </svg>
-            </div>
-            <h3 className="mt-4 text-lg font-medium text-gray-900">
-              Owner Profile Not Found
-            </h3>
-            <p className="mt-2 text-sm text-gray-600">
-              Your account is not associated with a store owner profile. 
-              Please contact support or complete your registration.
-            </p>
-            <div className="mt-6">
-              <button
-                onClick={() => window.location.href = '/owner/auth'}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              >
-                Back to Authentication
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+  // Check if this is an admin user
+  const isAdmin = user.email === 'admin@finditfast.com';
+  
+  // If admin access is allowed and user is admin, allow access
+  if (allowAdmin && isAdmin) {
+    return <>{children}</>;
+  }
+
+  // If owner profile is required but not found (and not admin), allow completing registration
+  if (requireOwner && !ownerProfile && !isAdmin) {
+    return <CompleteOwnerRegistration />;
   }
 
   return <>{children}</>;

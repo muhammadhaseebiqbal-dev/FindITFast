@@ -171,3 +171,99 @@ export const handlePWAInstall = async (deferredPrompt: PWAInstallPrompt): Promis
     return false;
   }
 };
+
+// Offline data management
+export const saveOfflineData = async (key: string, data: any): Promise<void> => {
+  try {
+    const offlineData = {
+      data,
+      timestamp: Date.now(),
+      version: '1.0'
+    };
+    localStorage.setItem(`offline_${key}`, JSON.stringify(offlineData));
+  } catch (error) {
+    console.error('Failed to save offline data:', error);
+  }
+};
+
+export const getOfflineData = async (key: string): Promise<any | null> => {
+  try {
+    const stored = localStorage.getItem(`offline_${key}`);
+    if (!stored) return null;
+    
+    const offlineData = JSON.parse(stored);
+    // Check if data is not too old (e.g., 7 days)
+    const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+    if (Date.now() - offlineData.timestamp > maxAge) {
+      localStorage.removeItem(`offline_${key}`);
+      return null;
+    }
+    
+    return offlineData.data;
+  } catch (error) {
+    console.error('Failed to get offline data:', error);
+    return null;
+  }
+};
+
+export const clearOfflineData = (): void => {
+  const keys = Object.keys(localStorage);
+  keys.forEach(key => {
+    if (key.startsWith('offline_')) {
+      localStorage.removeItem(key);
+    }
+  });
+};
+
+// PWA performance utilities
+export const measurePWAPerformance = (): void => {
+  if ('performance' in window) {
+    window.addEventListener('load', () => {
+      const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+      const paint = performance.getEntriesByType('paint');
+      
+      const metrics = {
+        dom_content_loaded: navigation.domContentLoadedEventEnd - navigation.domContentLoadedEventStart,
+        load_complete: navigation.loadEventEnd - navigation.loadEventStart,
+        first_paint: paint.find(p => p.name === 'first-paint')?.startTime || 0,
+        first_contentful_paint: paint.find(p => p.name === 'first-contentful-paint')?.startTime || 0,
+        is_pwa: isPWA(),
+        display_mode: getPWADisplayMode()
+      };
+      
+      trackPWAEvent('pwa_performance', metrics);
+    });
+  }
+};
+
+// Share API integration
+export const shareContent = async (shareData: {
+  title?: string;
+  text?: string;
+  url?: string;
+}): Promise<boolean> => {
+  if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+    try {
+      await navigator.share(shareData);
+      trackPWAEvent('content_shared', { method: 'native' });
+      return true;
+    } catch (error) {
+      if ((error as Error).name !== 'AbortError') {
+        console.error('Sharing failed:', error);
+      }
+    }
+  }
+  
+  // Fallback to clipboard
+  if (shareData.url && navigator.clipboard) {
+    try {
+      await navigator.clipboard.writeText(shareData.url);
+      trackPWAEvent('content_shared', { method: 'clipboard' });
+      return true;
+    } catch (error) {
+      console.error('Clipboard sharing failed:', error);
+    }
+  }
+  
+  return false;
+};

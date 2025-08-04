@@ -6,6 +6,12 @@ service cloud.firestore {
       return request.auth != null;
     }
     
+    function isAdmin() {
+      return isAuthenticated() && 
+             (request.auth.token.email == 'admin@finditfast.com' ||
+              exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+    }
+    
     function isOwner(resource) {
       return isAuthenticated() && request.auth.uid == resource.data.ownerId;
     }
@@ -19,21 +25,26 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == resource.id;
     }
 
+    // Global admin access rule - allows admins to read/write all collections
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+
     // Stores collection
     match /stores/{storeId} {
       // Anyone can read store information
       allow read: if true;
       
-      // Only authenticated store owners can create stores
-      allow create: if isAuthenticated() && 
+      // Only authenticated store owners can create stores, or admins
+      allow create: if (isAuthenticated() && 
                        isStoreOwner() &&
-                       request.auth.uid == resource.data.ownerId;
+                       request.auth.uid == resource.data.ownerId) || isAdmin();
       
-      // Only the store owner can update their store
-      allow update: if isOwner(resource);
+      // Only the store owner can update their store, or admins
+      allow update: if isOwner(resource) || isAdmin();
       
-      // Only the store owner can delete their store
-      allow delete: if isOwner(resource);
+      // Only the store owner can delete their store, or admins
+      allow delete: if isOwner(resource) || isAdmin();
     }
 
     // Items collection
@@ -41,40 +52,39 @@ service cloud.firestore {
       // Anyone can read items
       allow read: if true;
       
-      // Only store owners can create items for their stores
-      allow create: if isAuthenticated() && 
+      // Only store owners can create items for their stores, or admins
+      allow create: if isAdmin() || (isAuthenticated() && 
                        isStoreOwner() &&
                        exists(/databases/$(database)/documents/stores/$(resource.data.storeId)) &&
-                       get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == request.auth.uid;
+                       get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == request.auth.uid);
       
-      // Only the store owner can update items in their store
-      allow update: if isAuthenticated() && 
+      // Only the store owner can update items in their store, or admins
+      allow update: if isAdmin() || (isAuthenticated() && 
                        isStoreOwner() &&
                        exists(/databases/$(database)/documents/stores/$(resource.data.storeId)) &&
-                       get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == request.auth.uid;
+                       get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == request.auth.uid);
       
-      // Only the store owner can delete items from their store
-      allow delete: if isAuthenticated() && 
+      // Only the store owner can delete items from their store, or admins
+      allow delete: if isAdmin() || (isAuthenticated() && 
                        isStoreOwner() &&
                        exists(/databases/$(database)/documents/stores/$(resource.data.storeId)) &&
-                       get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == request.auth.uid;
+                       get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == request.auth.uid);
     }
 
     // Store owners collection
     match /storeOwners/{ownerId} {
-      // Store owners can read their own data
-      allow read: if isResourceOwner(resource);
+      // Store owners can read their own data, admins can read all
+      allow read: if isResourceOwner(resource) || isAdmin();
       
       // Only authenticated users can create store owner profiles for themselves
       allow create: if isAuthenticated() && 
-                       request.auth.uid == ownerId &&
-                       request.auth.token.email == resource.data.email;
+                       request.auth.uid == ownerId;
       
-      // Store owners can update their own data
-      allow update: if isResourceOwner(resource);
+      // Store owners can update their own data, admins can update any
+      allow update: if isResourceOwner(resource) || isAdmin();
       
-      // Store owners can delete their own data
-      allow delete: if isResourceOwner(resource);
+      // Store owners can delete their own data, admins can delete any
+      allow delete: if isResourceOwner(resource) || isAdmin();
     }
 
     // Reports collection
@@ -85,34 +95,53 @@ service cloud.firestore {
       // Anyone can create reports (users reporting issues)
       allow create: if true;
       
-      // Only store owners can update reports for items in their stores
-      allow update: if isAuthenticated() && 
+      // Only store owners can update reports for items in their stores, or admins
+      allow update: if isAdmin() || (isAuthenticated() && 
                        isStoreOwner() &&
                        exists(/databases/$(database)/documents/items/$(resource.data.itemId)) &&
                        exists(/databases/$(database)/documents/stores/$(get(/databases/$(database)/documents/items/$(resource.data.itemId)).data.storeId)) &&
-                       get(/databases/$(database)/documents/stores/$(get(/databases/$(database)/documents/items/$(resource.data.itemId)).data.storeId)).data.ownerId == request.auth.uid;
+                       get(/databases/$(database)/documents/stores/$(get(/databases/$(database)/documents/items/$(resource.data.itemId)).data.storeId)).data.ownerId == request.auth.uid);
       
-      // Only store owners can delete reports for items in their stores
-      allow delete: if isAuthenticated() && 
+      // Only store owners can delete reports for items in their stores, or admins
+      allow delete: if isAdmin() || (isAuthenticated() && 
                        isStoreOwner() &&
                        exists(/databases/$(database)/documents/items/$(resource.data.itemId)) &&
                        exists(/databases/$(database)/documents/stores/$(get(/databases/$(database)/documents/items/$(resource.data.itemId)).data.storeId)) &&
-                       get(/databases/$(database)/documents/stores/$(get(/databases/$(database)/documents/items/$(resource.data.itemId)).data.storeId)).data.ownerId == request.auth.uid;
+                       get(/databases/$(database)/documents/stores/$(get(/databases/$(database)/documents/items/$(resource.data.itemId)).data.storeId)).data.ownerId == request.auth.uid);
     }
 
     // Store requests collection
     match /storeRequests/{requestId} {
-      // Anyone can read store requests (for admin purposes)
-      allow read: if true;
+      // Store owners can read their own requests, admins can read all
+      allow read: if isAuthenticated() && 
+                     (resource.data.requestedBy == request.auth.uid || isAdmin());
       
-      // Anyone can create store requests (users suggesting new stores)
-      allow create: if true;
+      // Any authenticated user can create store requests with their own requestedBy
+      allow create: if isAuthenticated() && 
+                       request.resource.data.requestedBy == request.auth.uid;
       
-      // Only admins can update store request status (for now, allow authenticated users)
-      allow update: if isAuthenticated();
+      // Only admins can update store request status
+      allow update: if isAdmin();
       
-      // Only admins can delete store requests (for now, allow authenticated users)
-      allow delete: if isAuthenticated();
+      // Only admins can delete store requests
+      allow delete: if isAdmin();
+    }
+
+    // Admins collection
+    match /admins/{adminId} {
+      // Admins can read their own data
+      allow read: if isAuthenticated() && request.auth.uid == adminId;
+      
+      // Allow admin creation (for setup)
+      allow create: if isAuthenticated() && 
+                       request.auth.uid == adminId &&
+                       request.auth.token.email == resource.data.email;
+      
+      // Admins can update their own data
+      allow update: if isAuthenticated() && request.auth.uid == adminId;
+      
+      // Admins can delete their own data
+      allow delete: if isAuthenticated() && request.auth.uid == adminId;
     }
   }
 }

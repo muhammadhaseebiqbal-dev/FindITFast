@@ -96,7 +96,24 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
         fileInputRef.current.value = '';
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Upload failed';
+      console.error('Upload error:', err);
+      
+      // Handle different types of errors
+      let errorMessage = 'Failed to upload floorplan. ';
+      const error = err instanceof Error ? err : new Error('Unknown error');
+      
+      if (error.message.includes('CORS') || error.message.includes('storage configuration')) {
+        errorMessage = '🚧 Upload service is temporarily unavailable. Please contact support or try again later. The floorplan feature will be available soon.';
+      } else if (error.message.includes('network')) {
+        errorMessage += 'Please check your internet connection and try again.';
+      } else if (error.message.includes('permission')) {
+        errorMessage += 'You do not have permission to upload files to this location.';
+      } else if (error.message.includes('size')) {
+        errorMessage += 'The file is too large. Please use a smaller image.';
+      } else {
+        errorMessage += error.message || 'Unknown error occurred.';
+      }
+      
       setError(errorMessage);
       onUploadError(errorMessage);
       console.error('Upload error:', err);

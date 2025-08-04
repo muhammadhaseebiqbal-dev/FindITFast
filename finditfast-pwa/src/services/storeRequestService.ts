@@ -19,7 +19,10 @@ export interface CreateStoreRequestData {
     latitude: number;
     longitude: number;
   };
-  requestedBy?: string;
+  requestedBy: string; // Making this required to ensure it's always set
+  ownerId?: string; // For backward compatibility
+  ownerName?: string;
+  ownerEmail?: string;
   notes?: string;
 }
 
@@ -72,18 +75,42 @@ export class StoreRequestService {
    */
   static async getStoreRequestsByUser(userId: string): Promise<StoreRequest[]> {
     try {
-      const q = query(
-        collection(db, this.COLLECTION_NAME),
-        where('requestedBy', '==', userId),
-        orderBy('requestedAt', 'desc')
-      );
-      
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        requestedAt: doc.data().requestedAt?.toDate() || new Date(),
-      })) as StoreRequest[];
+      // First try with the composite index query (requestedBy + orderBy)
+      try {
+        const q = query(
+          collection(db, this.COLLECTION_NAME),
+          where('requestedBy', '==', userId),
+          orderBy('requestedAt', 'desc')
+        );
+        
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          requestedAt: doc.data().requestedAt?.toDate() || new Date(),
+        })) as StoreRequest[];
+      } catch (indexError) {
+        // If index error occurs, fall back to a simpler query without sorting
+        // This will work while the index is being built
+        console.warn('Using fallback query while index builds:', indexError);
+        
+        const fallbackQuery = query(
+          collection(db, this.COLLECTION_NAME),
+          where('requestedBy', '==', userId)
+        );
+        
+        const fallbackSnapshot = await getDocs(fallbackQuery);
+        const results = fallbackSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          requestedAt: doc.data().requestedAt?.toDate() || new Date(),
+        })) as StoreRequest[];
+        
+        // Sort client-side instead
+        return results.sort((a, b) => 
+          new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime()
+        );
+      }
     } catch (error) {
       console.error('Error fetching user store requests:', error);
       throw new Error('Failed to fetch your store requests.');

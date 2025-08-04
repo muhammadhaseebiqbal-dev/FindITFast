@@ -132,8 +132,13 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
   };
 
   return (
-    <div className="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
+    <div className="max-w-md mx-auto bg-white rounded-xl shadow-sm p-6">
       <div className="text-center mb-6">
+        <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+          </svg>
+        </div>
         <h2 className="text-2xl font-bold text-gray-900">
           {isLogin ? 'Store Owner Login' : 'Store Owner Registration'}
         </h2>
@@ -150,7 +155,7 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
         {!isLogin && (
           <>
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
                 Your Name *
               </label>
               <input
@@ -159,8 +164,8 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
                 name="name"
                 value={formData.name}
                 onChange={handleInputChange}
-                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors.name ? 'border-red-500' : 'border-gray-300'
+                className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent ${
+                  errors.name ? 'border-red-500 bg-red-50' : 'border-gray-300 bg-gray-50'
                 }`}
                 placeholder="Enter your full name"
               />
@@ -168,7 +173,7 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
             </div>
 
             <div>
-              <label htmlFor="storeName" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="storeName" className="block text-sm font-medium text-gray-700 mb-2">
                 Store Name *
               </label>
               <input
@@ -177,8 +182,8 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
                 name="storeName"
                 value={formData.storeName}
                 onChange={handleInputChange}
-                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors.storeName ? 'border-red-500' : 'border-gray-300'
+                className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent ${
+                  errors.storeName ? 'border-red-500 bg-red-50' : 'border-gray-300 bg-gray-50'
                 }`}
                 placeholder="Enter your store name"
               />
@@ -186,7 +191,7 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
             </div>
 
             <div>
-              <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
                 Phone Number *
               </label>
               <input
@@ -195,8 +200,8 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
                 name="phone"
                 value={formData.phone}
                 onChange={handleInputChange}
-                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors.phone ? 'border-red-500' : 'border-gray-300'
+                className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent ${
+                  errors.phone ? 'border-red-500 bg-red-50' : 'border-gray-300 bg-gray-50'
                 }`}
                 placeholder="Enter your phone number"
               />
@@ -207,7 +212,7 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
 
         {/* Common fields */}
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
             Email Address *
           </label>
           <input
@@ -216,8 +221,8 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
             name="email"
             value={formData.email}
             onChange={handleInputChange}
-            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              errors.email ? 'border-red-500' : 'border-gray-300'
+            className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent ${
+              errors.email ? 'border-red-500 bg-red-50' : 'border-gray-300 bg-gray-50'
             }`}
             placeholder="Enter your email address"
           />
@@ -225,7 +230,7 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
         </div>
 
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
             Password *
           </label>
           <input
@@ -234,8 +239,8 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
             name="password"
             value={formData.password}
             onChange={handleInputChange}
-            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              errors.password ? 'border-red-500' : 'border-gray-300'
+            className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent ${
+              errors.password ? 'border-red-500 bg-red-50' : 'border-gray-300 bg-gray-50'
             }`}
             placeholder="Enter your password"
           />
@@ -245,7 +250,7 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
         {/* Registration-only password confirmation */}
         {!isLogin && (
           <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
               Confirm Password *
             </label>
             <input
@@ -254,8 +259,8 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
               name="confirmPassword"
               value={formData.confirmPassword}
               onChange={handleInputChange}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
+              className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent ${
+                errors.confirmPassword ? 'border-red-500 bg-red-50' : 'border-gray-300 bg-gray-50'
               }`}
               placeholder="Confirm your password"
             />
@@ -265,8 +270,13 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
 
         {/* General error message */}
         {errors.general && (
-          <div className="bg-red-50 border border-red-200 rounded-md p-3">
-            <p className="text-red-600 text-sm">{errors.general}</p>
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+            <div className="flex items-center">
+              <svg className="w-5 h-5 text-red-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-red-600 text-sm">{errors.general}</p>
+            </div>
           </div>
         )}
 
@@ -274,18 +284,15 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
         <button
           type="submit"
           disabled={isLoading}
-          className={`w-full py-2 px-4 rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+          className={`w-full py-3 px-4 rounded-xl font-medium focus:outline-none focus:ring-2 focus:ring-gray-800 focus:ring-offset-2 transition-colors ${
             isLoading
-              ? 'bg-gray-400 cursor-not-allowed'
-              : 'bg-blue-600 hover:bg-blue-700 text-white'
+              ? 'bg-gray-400 cursor-not-allowed text-white'
+              : 'bg-gray-800 hover:bg-gray-900 text-white'
           }`}
         >
           {isLoading ? (
             <span className="flex items-center justify-center">
-              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></div>
               {isLogin ? 'Signing In...' : 'Creating Account...'}
             </span>
           ) : (
@@ -294,11 +301,11 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
         </button>
 
         {/* Toggle between login and registration */}
-        <div className="text-center">
+        <div className="text-center pt-4">
           <button
             type="button"
             onClick={toggleMode}
-            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+            className="text-gray-600 hover:text-gray-800 text-sm font-medium transition-colors"
           >
             {isLogin 
               ? "Don't have an account? Register here" 

@@ -1,73 +1,49 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { OwnerAuth } from '../components/auth/OwnerAuth';
 import { AuthService, type AuthError } from '../services/authService';
-import type { User } from 'firebase/auth';
 
 export const OwnerAuthPage: React.FC = () => {
-  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const unsubscribe = AuthService.onAuthStateChange((user) => {
-      setUser(user);
       setLoading(false);
+      
+      // Redirect to dashboard if user is authenticated
+      if (user) {
+        navigate('/owner/dashboard');
+      }
     });
 
     return unsubscribe;
-  }, []);
+  }, [navigate]);
 
   const handleAuthSuccess = () => {
     console.log('Authentication successful!');
+    // Navigation will be handled by the useEffect above
   };
 
   const handleAuthError = (error: AuthError) => {
     console.error('Authentication error:', error);
   };
 
-  const handleSignOut = async () => {
-    try {
-      await AuthService.signOutOwner();
-    } catch (error) {
-      console.error('Sign out error:', error);
-    }
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (user) {
-    return (
-      <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-md mx-auto">
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                Welcome, Store Owner!
-              </h2>
-              <p className="text-gray-600 mb-6">
-                You are signed in as: {user.email}
-              </p>
-              <button
-                onClick={handleSignOut}
-                className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-              >
-                Sign Out
-              </button>
-            </div>
+          <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
           </div>
+          <p className="text-gray-600 font-medium">Loading...</p>
         </div>
       </div>
     );
   }
 
+  // If user is authenticated, they will be redirected by useEffect
+  // Only show auth form for unauthenticated users
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <OwnerAuth
