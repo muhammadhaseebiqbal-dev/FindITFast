@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Generate PWA Icons</title>
+</head>
+<body>
+    <canvas id="canvas192" width="192" height="192" style="border: 1px solid black;"></canvas>
+    <canvas id="canvas512" width="512" height="512" style="border: 1px solid black;"></canvas>
+    
+    <script>
+        function generateIcon(canvasId, size) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            
+            // Background
+            ctx.fillStyle = '#3B82F6'; // Blue background
+            ctx.fillRect(0, 0, size, size);
+            
+            // Icon shape (magnifying glass)
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.fillStyle = '#FFFFFF';
+            ctx.lineWidth = size * 0.08;
+            
+            // Circle
+            ctx.beginPath();
+            ctx.arc(size * 0.4, size * 0.4, size * 0.2, 0, 2 * Math.PI);
+            ctx.stroke();
+            
+            // Handle
+            ctx.beginPath();
+            ctx.moveTo(size * 0.55, size * 0.55);
+            ctx.lineTo(size * 0.75, size * 0.75);
+            ctx.stroke();
+            
+            // Text
+            ctx.font = `${size * 0.08}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.fillText('FindItFast', size * 0.5, size * 0.9);
+        }
+        
+        generateIcon('canvas192', 192);
+        generateIcon('canvas512', 512);
+        
+        // Download function
+        function downloadCanvas(canvasId, filename) {
+            const canvas = document.getElementById(canvasId);
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+        
+        // Add download buttons
+        const button192 = document.createElement('button');
+        button192.textContent = 'Download 192x192';
+        button192.onclick = () => downloadCanvas('canvas192', 'pwa-192x192.png');
+        document.body.appendChild(button192);
+        
+        const button512 = document.createElement('button');
+        button512.textContent = 'Download 512x512';
+        button512.onclick = () => downloadCanvas('canvas512', 'pwa-512x512.png');
+        document.body.appendChild(button512);
+    </script>
+</body>
+</html>

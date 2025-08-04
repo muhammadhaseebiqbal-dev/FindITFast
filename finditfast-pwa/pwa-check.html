@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PWA Installation Check</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+        .check { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .pass { background: #d4edda; color: #155724; }
+        .fail { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>PWA Installation Requirements Check</h1>
+    <div id="results"></div>
+    
+    <h2>Manual Installation Test</h2>
+    <button onclick="testInstallPrompt()">Test Install Prompt</button>
+    <button onclick="checkManifest()">Check Manifest</button>
+    <button onclick="checkServiceWorker()">Check Service Worker</button>
+    
+    <div id="manual-results"></div>
+
+    <script>
+        let deferredPrompt = null;
+        
+        // Listen for install prompt
+        window.addEventListener('beforeinstallprompt', (e) => {
+            console.log('beforeinstallprompt fired!');
+            e.preventDefault();
+            deferredPrompt = e;
+            document.getElementById('manual-results').innerHTML += '<div class="pass">✅ Install prompt available!</div>';
+        });
+
+        function runChecks() {
+            const results = document.getElementById('results');
+            results.innerHTML = '';
+            
+            const checks = [
+                {
+                    name: 'HTTPS or localhost',
+                    test: () => location.protocol === 'https:' || location.hostname === 'localhost',
+                    required: true
+                },
+                {
+                    name: 'Service Worker support',
+                    test: () => 'serviceWorker' in navigator,
+                    required: true
+                },
+                {
+                    name: 'Web App Manifest',
+                    test: () => document.querySelector('link[rel="manifest"]') !== null,
+                    required: true
+                },
+                {
+                    name: 'Valid manifest icons',
+                    test: async () => {
+                        try {
+                            const response = await fetch('/manifest.webmanifest');
+                            const manifest = await response.json();
+                            return manifest.icons && manifest.icons.length > 0;
+                        } catch {
+                            return false;
+                        }
+                    },
+                    required: true
+                },
+                {
+                    name: 'Standalone display mode',
+                    test: async () => {
+                        try {
+                            const response = await fetch('/manifest.webmanifest');
+                            const manifest = await response.json();
+                            return manifest.display === 'standalone';
+                        } catch {
+                            return false;
+                        }
+                    },
+                    required: true
+                },
+                {
+                    name: 'Start URL',
+                    test: async () => {
+                        try {
+                            const response = await fetch('/manifest.webmanifest');
+                            const manifest = await response.json();
+                            return manifest.start_url !== undefined;
+                        } catch {
+                            return false;
+                        }
+                    },
+                    required: true
+                },
+                {
+                    name: 'Service Worker registered',
+                    test: async () => {
+                        if ('serviceWorker' in navigator) {
+                            try {
+                                const registration = await navigator.serviceWorker.getRegistration();
+                                return registration !== undefined;
+                            } catch {
+                                return false;
+                            }
+                        }
+                        return false;
+                    },
+                    required: true
+                }
+            ];
+            
+            checks.forEach(async (check) => {
+                const result = await check.test();
+                const div = document.createElement('div');
+                div.className = `check ${result ? 'pass' : 'fail'}`;
+                div.innerHTML = `${result ? '✅' : '❌'} ${check.name} ${check.required ? '(Required)' : '(Optional)'}`;
+                results.appendChild(div);
+            });
+        }
+        
+        function testInstallPrompt() {
+            const resultsDiv = document.getElementById('manual-results');
+            
+            if (deferredPrompt) {
+                resultsDiv.innerHTML += '<div class="pass">✅ Install prompt is available - triggering...</div>';
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    resultsDiv.innerHTML += `<div class="info">User choice: ${choiceResult.outcome}</div>`;
+                    deferredPrompt = null;
+                });
+            } else {
+                resultsDiv.innerHTML += '<div class="fail">❌ No install prompt available. Reasons could be:</div>';
+                resultsDiv.innerHTML += '<div class="info">• App is already installed</div>';
+                resultsDiv.innerHTML += '<div class="info">• Not served over HTTPS</div>';
+                resultsDiv.innerHTML += '<div class="info">• PWA criteria not met</div>';
+                resultsDiv.innerHTML += '<div class="info">• Browser doesn\'t support installation</div>';
+            }
+        }
+        
+        async function checkManifest() {
+            const resultsDiv = document.getElementById('manual-results');
+            try {
+                const response = await fetch('/manifest.webmanifest');
+                const manifest = await response.json();
+                resultsDiv.innerHTML += '<div class="pass">✅ Manifest loaded successfully</div>';
+                resultsDiv.innerHTML += `<div class="info">Icons: ${manifest.icons?.length || 0}</div>`;
+                resultsDiv.innerHTML += `<div class="info">Display: ${manifest.display}</div>`;
+                resultsDiv.innerHTML += `<div class="info">Start URL: ${manifest.start_url}</div>`;
+            } catch (error) {
+                resultsDiv.innerHTML += '<div class="fail">❌ Failed to load manifest</div>';
+            }
+        }
+        
+        async function checkServiceWorker() {
+            const resultsDiv = document.getElementById('manual-results');
+            if ('serviceWorker' in navigator) {
+                try {
+                    const registration = await navigator.serviceWorker.getRegistration();
+                    if (registration) {
+                        resultsDiv.innerHTML += '<div class="pass">✅ Service Worker is registered</div>';
+                        resultsDiv.innerHTML += `<div class="info">Scope: ${registration.scope}</div>`;
+                        resultsDiv.innerHTML += `<div class="info">State: ${registration.active?.state || 'unknown'}</div>`;
+                    } else {
+                        resultsDiv.innerHTML += '<div class="fail">❌ Service Worker not registered</div>';
+                    }
+                } catch (error) {
+                    resultsDiv.innerHTML += '<div class="fail">❌ Service Worker check failed</div>';
+                }
+            } else {
+                resultsDiv.innerHTML += '<div class="fail">❌ Service Worker not supported</div>';
+            }
+        }
+        
+        // Run checks on page load
+        window.onload = runChecks;
+    </script>
+</body>
+</html>

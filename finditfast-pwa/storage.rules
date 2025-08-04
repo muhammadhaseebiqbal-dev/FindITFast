@@ -1,0 +1,57 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isStoreOwner() {
+      return isAuthenticated() && 
+             exists(/databases/(default)/documents/storeOwners/$(request.auth.uid));
+    }
+    
+    function isOwnerOfStore(storeId) {
+      return isAuthenticated() && 
+             isStoreOwner() &&
+             exists(/databases/(default)/documents/stores/$(storeId)) &&
+             get(/databases/(default)/documents/stores/$(storeId)).data.ownerId == request.auth.uid;
+    }
+    
+    function isValidImageFile() {
+      return request.resource.contentType.matches('image/.*') &&
+             request.resource.size < 10 * 1024 * 1024; // 10MB limit
+    }
+
+    // Store floorplans
+    match /stores/{storeId}/floorplan.jpg {
+      // Anyone can read floorplans
+      allow read: if true;
+      
+      // Only store owners can upload/update their floorplans
+      allow write: if isOwnerOfStore(storeId) && isValidImageFile();
+      
+      // Only store owners can delete their floorplans
+      allow delete: if isOwnerOfStore(storeId);
+    }
+
+    // Item images
+    match /stores/{storeId}/items/{itemId}/{imageType} {
+      // Anyone can read item images
+      allow read: if true;
+      
+      // Only store owners can upload/update item images for their stores
+      allow write: if isOwnerOfStore(storeId) && 
+                      isValidImageFile() &&
+                      (imageType == 'item-image.jpg' || imageType == 'price-image.jpg');
+      
+      // Only store owners can delete item images from their stores
+      allow delete: if isOwnerOfStore(storeId);
+    }
+
+    // Deny all other paths
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

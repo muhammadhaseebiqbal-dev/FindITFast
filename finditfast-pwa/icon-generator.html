@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PWA Icon Generator</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        canvas { border: 1px solid #ccc; margin: 10px; }
+        button { padding: 10px 20px; margin: 5px; background: #3B82F6; color: white; border: none; border-radius: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>PWA Icon Generator for FindItFast</h1>
+    
+    <div>
+        <canvas id="canvas192" width="192" height="192"></canvas>
+        <canvas id="canvas512" width="512" height="512"></canvas>
+        <canvas id="canvas180" width="180" height="180"></canvas>
+    </div>
+    
+    <div>
+        <button onclick="downloadIcon('canvas192', 'pwa-192x192.png')">Download 192x192</button>
+        <button onclick="downloadIcon('canvas512', 'pwa-512x512.png')">Download 512x512</button>
+        <button onclick="downloadIcon('canvas180', 'apple-touch-icon.png')">Download Apple Touch Icon</button>
+        <button onclick="generateAll()">Generate All Icons</button>
+    </div>
+
+    <script>
+        function createIcon(canvasId, size) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            
+            // Background
+            ctx.fillStyle = '#3B82F6'; // Blue background
+            ctx.fillRect(0, 0, size, size);
+            
+            // Search icon (magnifying glass)
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.fillStyle = '#FFFFFF';
+            ctx.lineWidth = size * 0.08;
+            
+            // Circle
+            ctx.beginPath();
+            ctx.arc(size * 0.4, size * 0.4, size * 0.15, 0, 2 * Math.PI);
+            ctx.stroke();
+            
+            // Handle
+            ctx.beginPath();
+            ctx.moveTo(size * 0.52, size * 0.52);
+            ctx.lineTo(size * 0.7, size * 0.7);
+            ctx.stroke();
+            
+            // Text
+            ctx.font = `${size * 0.06}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.fillText('FindItFast', size * 0.5, size * 0.85);
+        }
+        
+        function downloadIcon(canvasId, filename) {
+            const canvas = document.getElementById(canvasId);
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+        
+        function generateAll() {
+            // Generate all icons
+            createIcon('canvas192', 192);
+            createIcon('canvas512', 512);
+            createIcon('canvas180', 180);
+            
+            // Auto-download all
+            setTimeout(() => downloadIcon('canvas192', 'pwa-192x192.png'), 100);
+            setTimeout(() => downloadIcon('canvas512', 'pwa-512x512.png'), 200);
+            setTimeout(() => downloadIcon('canvas180', 'apple-touch-icon.png'), 300);
+            
+            alert('Icons generated! Check your downloads folder and copy them to the public/ directory.');
+        }
+        
+        // Generate icons on page load
+        window.onload = function() {
+            createIcon('canvas192', 192);
+            createIcon('canvas512', 512);
+            createIcon('canvas180', 180);
+        };
+    </script>
+</body>
+</html>
