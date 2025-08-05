@@ -4,8 +4,8 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../../services/firebase';
 
 export const AdminAuth: React.FC = () => {
-  const [email, setEmail] = useState('admin@finditfast.com');
-  const [password, setPassword] = useState('AdminPassword123!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -139,12 +139,6 @@ export const AdminAuth: React.FC = () => {
                 Back to search
               </button>
             </div>
-          </div>
-
-          <div className="bg-gray-50 rounded-xl p-4 text-xs text-gray-600">
-            <h4 className="font-medium text-gray-900 mb-2">Test Credentials:</h4>
-            <p><strong>Email:</strong> admin@finditfast.com</p>
-            <p><strong>Password:</strong> AdminPassword123!</p>
           </div>
         </form>
       </div>

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { FloorplanManager, MultiStoreItemManager, OwnerStoreManager } from '../components/owner';
 import { StoreService, ItemService } from '../services/firestoreService';
-import { collection, query, where, getDocs, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, onSnapshot, addDoc, serverTimestamp, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import type { Store, Item } from '../types';
 
@@ -30,6 +30,10 @@ export const OwnerDashboard: React.FC = () => {
     documents: [] as File[]
   });
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
+  const [allOwnerStores, setAllOwnerStores] = useState<any[]>([]);
+  const [storesLoading, setStoresLoading] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ storeId: string; storeName: string } | null>(null);
+  const [editingStore, setEditingStore] = useState<any | null>(null);
 
   // Sidebar navigation items
   const sidebarItems = [
@@ -110,6 +114,50 @@ export const OwnerDashboard: React.FC = () => {
 
     loadStoreData();
   }, [ownerProfile?.storeId]);
+  
+  // Load all stores for this owner (both approved and rejected)
+  useEffect(() => {
+    const loadAllOwnerStores = async () => {
+      if (!user?.uid) return;
+      
+      setStoresLoading(true);
+      try {
+        // Get all store requests by this owner
+        const storeRequestsQuery = query(
+          collection(db, 'storeRequests'), 
+          where('requestedBy', '==', user.uid)
+        );
+        const storeRequestsSnapshot = await getDocs(storeRequestsQuery);
+        const storeRequestsData = storeRequestsSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          type: 'request'
+        }));
+        
+        // Get all created stores owned by this user
+        const storesQuery = query(
+          collection(db, 'stores'), 
+          where('ownerId', '==', user.uid)
+        );
+        const storesSnapshot = await getDocs(storesQuery);
+        const storesData = storesSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          type: 'store'
+        }));
+        
+        // Combine both sets of results
+        const allStores = [...storeRequestsData, ...storesData];
+        setAllOwnerStores(allStores);
+      } catch (error) {
+        console.error('Error loading owner stores:', error);
+      } finally {
+        setStoresLoading(false);
+      }
+    };
+    
+    loadAllOwnerStores();
+  }, [user?.uid]);
 
   // Load store requests from Firebase
   useEffect(() => {
@@ -481,6 +529,37 @@ export const OwnerDashboard: React.FC = () => {
     setError(errorMessage);
     setTimeout(() => setError(null), 5000);
   };
+  
+  // Handle editing a store
+  const handleEditStore = (store: any) => {
+    setEditingStore(store);
+    // If it's a request, go to requests tab, otherwise go to inventory tab
+    setActiveTab(store.type === 'request' ? 'requests' : 'inventory');
+  };
+  
+  // Handle deleting a store
+  const handleDeleteStore = async (storeId: string, storeType: string) => {
+    try {
+      if (storeType === 'store') {
+        // Delete from stores collection
+        await StoreService.delete(storeId);
+      } else {
+        // Delete from storeRequests collection
+        const storeRequestRef = doc(db, 'storeRequests', storeId);
+        await deleteDoc(storeRequestRef);
+      }
+      
+      // Update state to remove the deleted store
+      setAllOwnerStores(prev => prev.filter(store => store.id !== storeId));
+      setDeleteConfirm(null);
+      setUploadSuccess(`Store deleted successfully`);
+      setTimeout(() => setUploadSuccess(null), 5000);
+    } catch (error) {
+      console.error('Error deleting store:', error);
+      setError('Failed to delete store. Please try again.');
+      setTimeout(() => setError(null), 5000);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -647,9 +726,9 @@ export const OwnerDashboard: React.FC = () => {
                     <p className="text-lg font-semibold text-gray-900">{items.length}</p>
                   </div>
                   <div className="bg-white rounded-xl p-6 shadow-sm">
-                    <h3 className="text-sm font-medium text-gray-500 mb-1">Store ID</h3>
-                    <p className="text-lg font-semibold text-gray-900">
-                      {ownerProfile.storeId || 'Not assigned'}
+                    <h3 className="text-sm font-medium text-gray-500 mb-1">Owner ID</h3>
+                    <p className="text-lg font-semibold text-gray-900 truncate overflow-hidden text-ellipsis" title={user.uid || 'Not assigned'}>
+                      {user?.uid || 'Not assigned'}
                     </p>
                   </div>
                   <div className="bg-white rounded-xl p-6 shadow-sm">
@@ -707,6 +786,96 @@ export const OwnerDashboard: React.FC = () => {
                       <p className="text-sm font-medium text-gray-900">Manage Inventory</p>
                     </div>
                   </button>
+                </div>
+              </div>
+
+              {/* All Stores Section */}
+              <div className="bg-white rounded-xl p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">My Stores</h2>
+                    <p className="text-gray-600">All your stores and store requests</p>
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    {storesLoading ? (
+                      <span className="flex items-center">
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Loading...
+                      </span>
+                    ) : (
+                      <span>{allOwnerStores.length} stores found</span>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Stores List */}
+                <div className="space-y-4">
+                  {allOwnerStores.length === 0 && !storesLoading ? (
+                    <div className="bg-gray-50 rounded-lg p-4 text-center">
+                      <p className="text-gray-600">You don't have any stores yet. Create a store request to get started.</p>
+                      <button 
+                        onClick={() => setActiveTab('requests')}
+                        className="mt-2 px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900"
+                      >
+                        Create Store Request
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {allOwnerStores.map(store => (
+                        <div key={store.id} className="bg-gray-50 rounded-lg p-4 hover:shadow-md transition-shadow">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h3 className="text-md font-semibold text-gray-900 truncate" title={store.name || store.storeName}>
+                                {store.name || store.storeName || 'Unnamed Store'}
+                              </h3>
+                              <p className={`text-sm ${store.status === 'approved' ? 'text-green-600' : store.status === 'rejected' ? 'text-red-600' : 'text-yellow-600'}`}>
+                                {store.type === 'store' ? 'Active Store' : `Request: ${store.status || 'pending'}`}
+                              </p>
+                            </div>
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={() => handleEditStore(store)}
+                                className="flex items-center p-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                                title="Edit store"
+                              >
+                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                <span className="text-xs font-medium">Edit</span>
+                              </button>
+                              <button
+                                onClick={() => setDeleteConfirm({ storeId: store.id, storeName: store.name || store.storeName || 'this store' })}
+                                className="flex items-center p-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                                title="Delete store"
+                              >
+                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                <span className="text-xs font-medium">Delete</span>
+                              </button>
+                            </div>
+                          </div>
+                          
+                          <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-500">
+                            <div>
+                              <span className="font-medium">Location:</span><br />
+                              <span className="truncate block" title={store.address || 'Not specified'}>
+                                {store.address || 'Not specified'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="font-medium">Created:</span><br />
+                              <span>{store.createdAt ? new Date(store.createdAt.seconds * 1000).toLocaleDateString() : 'Unknown'}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1152,6 +1321,40 @@ export const OwnerDashboard: React.FC = () => {
           </div>
         </main>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Delete Store</h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete <span className="font-semibold">{deleteConfirm.storeName}</span>? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-4">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg font-medium hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const store = allOwnerStores.find(s => s.id === deleteConfirm.storeId);
+                  if (store) {
+                    handleDeleteStore(store.id, store.type);
+                  }
+                }}
+                className="px-4 py-2 text-white bg-red-600 rounded-lg font-medium hover:bg-red-700 flex items-center"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Delete Store
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
