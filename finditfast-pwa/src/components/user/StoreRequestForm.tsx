@@ -9,12 +9,22 @@ interface StoreRequestFormProps {
   onCancel?: () => void;
 }
 
+interface FormData {
+  storeName: string;
+  address: string;
+  location?: {
+    latitude: number;
+    longitude: number;
+  };
+  notes?: string;
+}
+
 export const StoreRequestForm: React.FC<StoreRequestFormProps> = ({
   onSuccess,
   onCancel,
 }) => {
   const { user } = useAuth();
-  const [formData, setFormData] = useState<CreateStoreRequestData>({
+  const [formData, setFormData] = useState<FormData>({
     storeName: '',
     address: '',
     notes: '',
@@ -65,8 +75,18 @@ export const StoreRequestForm: React.FC<StoreRequestFormProps> = ({
     setErrors([]);
     setSuccessMessage('');
 
-    // Validate form data
-    const validationErrors = StoreRequestService.validateStoreRequestData(formData);
+    if (!user?.uid) {
+      setErrors(['Please sign in to submit a store request.']);
+      return;
+    }
+
+    // Create validation data with requestedBy
+    const validationData: CreateStoreRequestData = {
+      ...formData,
+      requestedBy: user.uid,
+    };
+
+    const validationErrors = StoreRequestService.validateStoreRequestData(validationData);
     if (validationErrors.length > 0) {
       setErrors(validationErrors);
       return;
@@ -77,11 +97,11 @@ export const StoreRequestForm: React.FC<StoreRequestFormProps> = ({
     try {
       const requestData: CreateStoreRequestData = {
         ...formData,
-        requestedBy: user?.uid,
+        requestedBy: user.uid,
       };
 
       await StoreRequestService.createStoreRequest(requestData);
-      setSuccessMessage('Store request submitted successfully! We\'ll review it and get back to you.');
+      setSuccessMessage('Store request submitted and store created successfully! Your store is now live and awaiting admin approval for full activation.');
       
       // Reset form
       setFormData({

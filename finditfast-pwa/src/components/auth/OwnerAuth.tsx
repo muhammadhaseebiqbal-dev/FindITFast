@@ -13,7 +13,6 @@ interface FormData extends OwnerRegistrationData {
 
 interface FormErrors {
   name?: string;
-  storeName?: string;
   email?: string;
   phone?: string;
   password?: string;
@@ -26,7 +25,6 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     name: '',
-    storeName: '',
     email: '',
     phone: '',
     password: '',
@@ -51,10 +49,6 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
       // Registration validation
       if (!formData.name.trim()) {
         newErrors.name = 'Name is required';
-      }
-
-      if (!formData.storeName.trim()) {
-        newErrors.storeName = 'Store name is required';
       }
 
       if (!formData.phone.trim()) {
@@ -101,7 +95,6 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
       } else {
         const registrationData: OwnerRegistrationData = {
           name: formData.name,
-          storeName: formData.storeName,
           email: formData.email,
           phone: formData.phone,
         };
@@ -123,7 +116,6 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
     setErrors({});
     setFormData({
       name: '',
-      storeName: '',
       email: '',
       phone: '',
       password: '',
@@ -170,24 +162,6 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
                 placeholder="Enter your full name"
               />
               {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
-            </div>
-
-            <div>
-              <label htmlFor="storeName" className="block text-sm font-medium text-gray-700 mb-2">
-                Store Name *
-              </label>
-              <input
-                type="text"
-                id="storeName"
-                name="storeName"
-                value={formData.storeName}
-                onChange={handleInputChange}
-                className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent ${
-                  errors.storeName ? 'border-red-500 bg-red-50' : 'border-gray-300 bg-gray-50'
-                }`}
-                placeholder="Enter your store name"
-              />
-              {errors.storeName && <p className="text-red-500 text-sm mt-1">{errors.storeName}</p>}
             </div>
 
             <div>

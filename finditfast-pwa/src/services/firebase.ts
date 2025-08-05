@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
-import { getAuth } from 'firebase/auth';
+import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth';
 
 // Firebase configuration - using demo project for PWA testing
 const firebaseConfig = {
@@ -21,6 +21,12 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const auth = getAuth(app);
+
+// Set auth persistence to local storage for better login persistence
+// This will keep the user logged in across browser sessions and tab closes
+setPersistence(auth, browserLocalPersistence).catch((error) => {
+  console.warn('Failed to set auth persistence:', error);
+});
 
 // For demo/development - disable analytics to avoid errors
 export const analytics = null;

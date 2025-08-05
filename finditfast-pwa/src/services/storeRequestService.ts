@@ -4,13 +4,15 @@ import {
   getDocs, 
   doc, 
   updateDoc, 
+  setDoc,
   query, 
   orderBy, 
   where,
-  Timestamp 
+  Timestamp,
+  serverTimestamp 
 } from 'firebase/firestore';
 import { db } from './firebase';
-import type { StoreRequest } from '../types/index';
+import type { StoreRequest, Store } from '../types/index';
 
 export interface CreateStoreRequestData {
   storeName: string;
@@ -30,20 +32,44 @@ export class StoreRequestService {
   private static readonly COLLECTION_NAME = 'storeRequests';
 
   /**
-   * Submit a new store request
+   * Submit a new store request and automatically create the store
    */
   static async createStoreRequest(data: CreateStoreRequestData): Promise<string> {
     try {
+      // Generate unique store ID
+      const storeId = `store_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Create the store request data
       const requestData = {
         ...data,
+        storeId, // Include the generated storeId
         requestedAt: Timestamp.now(),
         status: 'pending' as const,
       };
 
-      const docRef = await addDoc(collection(db, this.COLLECTION_NAME), requestData);
-      return docRef.id;
+      // Create the actual store record immediately
+      const storeData: Omit<Store, 'id'> = {
+        name: data.storeName,
+        address: data.address,
+        location: data.location || {
+          latitude: 0,
+          longitude: 0 // Default coordinates - can be updated later
+        },
+        ownerId: data.requestedBy,
+        createdAt: serverTimestamp() as any,
+        updatedAt: serverTimestamp() as any
+      };
+
+      // Create both the store request and the actual store
+      const [requestDocRef] = await Promise.all([
+        addDoc(collection(db, this.COLLECTION_NAME), requestData),
+        setDoc(doc(db, 'stores', storeId), storeData)
+      ]);
+
+      console.log(`✅ Store created with ID: ${storeId} for request: ${requestDocRef.id}`);
+      return requestDocRef.id;
     } catch (error) {
-      console.error('Error creating store request:', error);
+      console.error('Error creating store request and store:', error);
       throw new Error('Failed to submit store request. Please try again.');
     }
   }

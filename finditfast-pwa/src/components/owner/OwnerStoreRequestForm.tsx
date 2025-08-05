@@ -32,8 +32,18 @@ export const OwnerStoreRequestForm: React.FC<StoreRequestFormProps> = ({ onSucce
     e.preventDefault();
     setErrors([]);
 
-    // Validate form data
-    const validationErrors = StoreRequestService.validateStoreRequestData(formData);
+    if (!user?.uid) {
+      setErrors(['Please sign in to submit a store request.']);
+      return;
+    }
+
+    // Create validation data with requestedBy
+    const validationData: CreateStoreRequestData = {
+      ...formData,
+      requestedBy: user.uid,
+    };
+
+    const validationErrors = StoreRequestService.validateStoreRequestData(validationData);
     if (validationErrors.length > 0) {
       setErrors(validationErrors);
       return;
@@ -44,11 +54,11 @@ export const OwnerStoreRequestForm: React.FC<StoreRequestFormProps> = ({ onSucce
     try {
       const requestData: CreateStoreRequestData = {
         ...formData,
-        requestedBy: user?.uid,
+        requestedBy: user.uid,
       };
 
       await StoreRequestService.createStoreRequest(requestData);
-      setSuccessMessage('Store request submitted successfully! It will be reviewed by the admin team.');
+      setSuccessMessage('Store request submitted and store created successfully! Your store is now live and ready for you to manage. It will be marked as approved once reviewed by the admin team.');
       
       // Reset form
       setFormData({

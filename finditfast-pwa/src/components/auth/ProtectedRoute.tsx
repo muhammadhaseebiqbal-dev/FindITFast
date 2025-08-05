@@ -1,7 +1,6 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { CompleteOwnerRegistration } from './CompleteOwnerRegistration';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -12,9 +11,9 @@ interface ProtectedRouteProps {
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
   children, 
   requireOwner = false,
-  allowAdmin = false
+  allowAdmin = false  
 }) => {
-  const { user, ownerProfile, loading } = useAuth();
+  const { user, loading } = useAuth();
   const location = useLocation();
 
   // Show loading spinner while checking authentication
@@ -44,9 +43,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <>{children}</>;
   }
 
-  // If owner profile is required but not found (and not admin), allow completing registration
-  if (requireOwner && !ownerProfile && !isAdmin) {
-    return <CompleteOwnerRegistration />;
+  // For owner routes, allow access if user is authenticated
+  if (requireOwner && !isAdmin) {
+    return <>{children}</>;
   }
 
   return <>{children}</>;

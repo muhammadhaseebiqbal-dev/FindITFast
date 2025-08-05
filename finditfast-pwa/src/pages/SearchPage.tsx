@@ -152,7 +152,7 @@ export const SearchPage: React.FC = () => {
 
   const handleResultClick = useCallback((result: SearchResult) => {
     console.log('Result clicked:', result);
-    navigate(`/store/${result.store.id}`);
+    navigate(`/inventory/${result.id}/${result.storeId}`);
   }, [navigate]);
 
   const handleLocationRequest = useCallback(async () => {

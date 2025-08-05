@@ -1,6 +1,5 @@
 import { 
   doc, 
-  setDoc, 
   updateDoc, 
   getDoc,
   collection,
@@ -26,7 +25,7 @@ export interface StoreApprovalResult {
 export class StoreApprovalService {
   
   /**
-   * Approve a store request and create the actual store
+   * Approve a store request (store already exists, just update status)
    */
   static async approveStoreRequest(
     requestId: string, 
@@ -43,33 +42,23 @@ export class StoreApprovalService {
         throw new Error(`Store request is already ${request.status}`);
       }
 
-      // Generate store ID
-      const storeId = `store_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      // Store should already exist with the storeId from the request
+      const storeId = request.storeId;
+      if (!storeId) {
+        throw new Error('Store request missing storeId - this should not happen');
+      }
 
-      // Create the actual store record
-      const storeData: Omit<Store, 'id'> = {
-        name: request.storeName,
-        address: request.address,
-        location: request.location ? {
-          latitude: request.location.latitude,
-          longitude: request.location.longitude
-        } : {
-          latitude: 0,
-          longitude: 0 // Default coordinates - should be updated by owner
-        },
-        ownerId: request.requestedBy || 'unassigned',
-        createdAt: serverTimestamp() as any,
-        updatedAt: serverTimestamp() as any
-      };
-
-      // Create store document
-      await setDoc(doc(db, 'stores', storeId), storeData);
+      // Verify the store exists
+      const storeDoc = await getDoc(doc(db, 'stores', storeId));
+      if (!storeDoc.exists()) {
+        throw new Error(`Store ${storeId} not found - data integrity issue`);
+      }
 
       // Update the store request status
       await StoreRequestService.updateStoreRequestStatus(
         requestId, 
         'approved',
-        adminNotes || `Store approved and created with ID: ${storeId}`
+        adminNotes || `Store approved with ID: ${storeId}`
       );
 
       // Try to link to existing owner if requestedBy matches an owner account
@@ -78,30 +67,30 @@ export class StoreApprovalService {
 
       if (request.requestedBy) {
         try {
-          const ownerUpdated = await this.linkStoreToOwner(request.requestedBy, storeId);
+          ownerUpdated = await this.linkStoreToOwner(request.requestedBy, storeId);
           linked = ownerUpdated;
         } catch (error) {
           console.warn('Could not auto-link store to owner:', error);
         }
       }
 
-      const createdStore: Store = {
+      const existingStore: Store = {
         id: storeId,
-        ...storeData,
-        createdAt: new Date() as any,
-        updatedAt: new Date() as any
-      };
+        ...storeDoc.data(),
+        createdAt: storeDoc.data().createdAt?.toDate() || new Date(),
+        updatedAt: storeDoc.data().updatedAt?.toDate() || new Date()
+      } as Store;
 
       return {
         storeId,
-        store: createdStore,
+        store: existingStore,
         linked,
         ownerUpdated
       };
 
     } catch (error) {
       console.error('Error approving store request:', error);
-      throw new Error(`Failed to approve store request: ${error.message}`);
+      throw new Error(`Failed to approve store request: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -110,42 +99,36 @@ export class StoreApprovalService {
    */
   static async linkStoreToOwner(ownerUid: string, storeId: string): Promise<boolean> {
     try {
-      // Check if owner document exists
-      const ownerDoc = await getDoc(doc(db, 'owners', ownerUid));
+      console.log('🔗 Linking store', storeId, 'to owner UID:', ownerUid);
       
-      if (!ownerDoc.exists()) {
-        // Try finding owner by UID in storeOwners collection
-        const ownerQuery = query(
-          collection(db, 'storeOwners'),
-          where('uid', '==', ownerUid)
-        );
-        const ownerSnapshot = await getDocs(ownerQuery);
-        
-        if (ownerSnapshot.empty) {
-          console.warn(`No owner found with UID: ${ownerUid}`);
-          return false;
-        }
-
-        // Update the first matching owner
-        const ownerDocRef = ownerSnapshot.docs[0].ref;
-        await updateDoc(ownerDocRef, {
-          storeId: storeId,
-          updatedAt: serverTimestamp()
-        });
-
-        return true;
+      // Find owner by firebaseUid in storeOwners collection
+      const ownerQuery = query(
+        collection(db, 'storeOwners'),
+        where('firebaseUid', '==', ownerUid)
+      );
+      const ownerSnapshot = await getDocs(ownerQuery);
+      
+      if (ownerSnapshot.empty) {
+        console.warn(`❌ No store owner found with firebaseUid: ${ownerUid}`);
+        return false;
       }
 
-      // Update owner document with store ID
-      await updateDoc(doc(db, 'owners', ownerUid), {
+      // Update the first matching owner with the store ID
+      const ownerDocRef = ownerSnapshot.docs[0].ref;
+      const ownerData = ownerSnapshot.docs[0].data();
+      
+      console.log('✅ Found owner record:', ownerSnapshot.docs[0].id, 'Email:', ownerData.email);
+      
+      await updateDoc(ownerDocRef, {
         storeId: storeId,
         updatedAt: serverTimestamp()
       });
 
+      console.log('✅ Successfully linked store', storeId, 'to owner', ownerSnapshot.docs[0].id);
       return true;
 
     } catch (error) {
-      console.error('Error linking store to owner:', error);
+      console.error('❌ Error linking store to owner:', error);
       return false;
     }
   }
@@ -188,7 +171,7 @@ export class StoreApprovalService {
       );
     } catch (error) {
       console.error('Error rejecting store request:', error);
-      throw new Error(`Failed to reject store request: ${error.message}`);
+      throw new Error(`Failed to reject store request: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

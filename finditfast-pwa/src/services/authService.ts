@@ -1,18 +1,17 @@
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-  type User,
-  type UserCredential,
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged
 } from 'firebase/auth';
+import type { User, UserCredential } from 'firebase/auth';
 import { auth } from './firebase';
 import { StoreOwnerService } from './firestoreService';
+import { generateUniqueOwnerId } from '../utils/idGenerator';
 import type { StoreOwner } from '../types';
 
 export interface OwnerRegistrationData {
   name: string;
-  storeName: string;
   email: string;
   phone: string;
 }
@@ -31,18 +30,21 @@ export class AuthService {
       // Create Firebase Auth user
       const userCredential = await createUserWithEmailAndPassword(auth, data.email, password);
       
-      // Create store owner profile in Firestore with the Firebase Auth UID as the document ID
+      // Generate custom short owner ID
+      const customOwnerId = await generateUniqueOwnerId();
+      
+      // Create store owner profile in Firestore with custom ID as document ID
       const ownerData: Omit<StoreOwner, 'id'> = {
+        firebaseUid: userCredential.user.uid,
         name: data.name,
         email: data.email,
         phone: data.phone,
-        storeName: data.storeName,
         storeId: '', // Will be set when store is created
         createdAt: new Date() as any,
       };
       
-      // Use the Firebase Auth UID as the document ID for easier lookup
-      await StoreOwnerService.createWithId(userCredential.user.uid, ownerData);
+      // Use the custom owner ID as the document ID
+      await StoreOwnerService.createWithId(customOwnerId, ownerData);
       
       return userCredential;
     } catch (error: any) {
@@ -94,20 +96,32 @@ export class AuthService {
    */
   static async getCurrentOwnerProfile(): Promise<StoreOwner | null> {
     const user = this.getCurrentUser();
-    if (!user) return null;
+    if (!user) {
+      console.log('❌ AuthService: No current user');
+      return null;
+    }
 
     try {
-      // Try to get owner profile by Firebase Auth UID first
-      const ownerProfile = await StoreOwnerService.getById(user.uid);
-      if (ownerProfile) {
-        return ownerProfile;
-      }
-
-      // Fallback: Find owner by email for existing records
+      console.log('🔍 AuthService: Querying owners for firebaseUid:', user.uid);
+      // Query owner by Firebase UID field
       const owners = await StoreOwnerService.getAll();
-      return owners.find(owner => owner.email === user.email) || null;
+      console.log('📋 AuthService: Found', owners.length, 'total owners');
+      
+      const matchingOwner = owners.find(owner => owner.firebaseUid === user.uid);
+      console.log('🎯 AuthService: Matching owner:', matchingOwner ? `Found: ${matchingOwner.id}` : 'Not found');
+      
+      if (matchingOwner) {
+        console.log('✅ AuthService: Owner details:', {
+          id: matchingOwner.id,
+          email: matchingOwner.email,
+          firebaseUid: matchingOwner.firebaseUid,
+          storeId: matchingOwner.storeId
+        });
+      }
+      
+      return matchingOwner || null;
     } catch (error) {
-      console.error('Error getting owner profile:', error);
+      console.error('❌ AuthService: Error getting owner profile:', error);
       return null;
     }
   }

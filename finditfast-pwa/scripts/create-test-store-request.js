@@ -4,7 +4,7 @@
  */
 
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, Timestamp } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, doc, setDoc, Timestamp, serverTimestamp } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyCsIptYZldF6V4MQI0bMm_bK64doLW1Mmk",
@@ -22,7 +22,11 @@ async function createTestStoreRequest() {
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     
+    // Generate store ID like the service does
+    const storeId = `store_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
     const testRequest = {
+      storeId: storeId,
       storeName: 'Downtown Electronics',
       address: '456 Main Street, Downtown City, State 12345',
       location: {
@@ -34,15 +38,30 @@ async function createTestStoreRequest() {
       status: 'pending',
       notes: 'Popular electronics store in the downtown area. High customer demand for this location.'
     };
+
+    // Create the store data that matches the request
+    const storeData = {
+      name: testRequest.storeName,
+      address: testRequest.address,
+      location: testRequest.location,
+      ownerId: testRequest.requestedBy,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    };
     
-    const docRef = await addDoc(collection(db, 'storeRequests'), testRequest);
+    // Create both the request and the store
+    const [requestDocRef] = await Promise.all([
+      addDoc(collection(db, 'storeRequests'), testRequest),
+      setDoc(doc(db, 'stores', storeId), storeData)
+    ]);
     
-    console.log('✅ Test store request created successfully!');
+    console.log('✅ Test store request and store created successfully!');
     console.log('📋 Request Details:');
+    console.log(`   - Store ID: ${storeId}`);
     console.log(`   - Store Name: ${testRequest.storeName}`);
     console.log(`   - Address: ${testRequest.address}`);
     console.log(`   - Status: ${testRequest.status}`);
-    console.log(`   - Request ID: ${docRef.id}`);
+    console.log(`   - Request ID: ${requestDocRef.id}`);
     console.log('');
     console.log('🔗 To approve this request:');
     console.log('   1. Visit: http://localhost:5174/admin');

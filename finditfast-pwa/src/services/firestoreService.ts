@@ -14,7 +14,7 @@ import {
   QueryConstraint,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import type { Store, Item, StoreOwner, Report } from '../types';
+import type { Store, Item, StoreOwner, Report, StorePlan } from '../types';
 
 // Generic Firestore operations
 export class FirestoreService {
@@ -108,7 +108,20 @@ export const StoreService = {
     return FirestoreService.getCollection<Store>('stores');
   },
   create: (store: Omit<Store, 'id'>) => FirestoreService.addDocument<Store>('stores', store),
-  update: (id: string, data: Partial<Store>) => FirestoreService.updateDocument('stores', id, data),
+  update: async (id: string, data: Partial<Store>) => {
+    // Handle temporary store IDs that may not exist yet
+    if (id.startsWith('temp_')) {
+      try {
+        const docRef = doc(db, 'stores', id);
+        await setDoc(docRef, data, { merge: true });
+      } catch (error) {
+        console.error(`Error creating/updating temp store document:`, error);
+        throw error;
+      }
+    } else {
+      return FirestoreService.updateDocument('stores', id, data);
+    }
+  },
   delete: (id: string) => FirestoreService.deleteDocument('stores', id),
 };
 
@@ -190,6 +203,56 @@ export const ReportService = {
   create: (report: Omit<Report, 'id'>) => FirestoreService.addDocument<Report>('reports', report),
   update: (id: string, data: Partial<Report>) => FirestoreService.updateDocument('reports', id, data),
   delete: (id: string) => FirestoreService.deleteDocument('reports', id),
+};
+
+export const StorePlanService = {
+  getAll: () => FirestoreService.getCollection<StorePlan>('storePlans'),
+  getById: (id: string) => FirestoreService.getDocument<StorePlan>('storePlans', id),
+  getByStore: (storeId: string) =>
+    FirestoreService.getCollection<StorePlan>('storePlans', [
+      where('storeId', '==', storeId),
+      orderBy('createdAt', 'desc')
+    ]),
+  getByOwner: (ownerId: string) =>
+    FirestoreService.getCollection<StorePlan>('storePlans', [
+      where('ownerId', '==', ownerId),
+      orderBy('createdAt', 'desc')
+    ]),
+  getActiveByStore: (storeId: string) =>
+    FirestoreService.getCollection<StorePlan>('storePlans', [
+      where('storeId', '==', storeId),
+      where('isActive', '==', true),
+      limit(1)
+    ]),
+  create: async (storePlan: Omit<StorePlan, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
+    const now = new Date();
+    const docData = {
+      ...storePlan,
+      uploadedAt: now, // Convert Date to Timestamp for Firestore
+      createdAt: now,
+      updatedAt: now,
+    };
+    return FirestoreService.addDocument<any>('storePlans', docData);
+  },
+  update: (id: string, data: Partial<StorePlan>) => {
+    const updateData = {
+      ...data,
+      updatedAt: new Date(),
+    };
+    return FirestoreService.updateDocument('storePlans', id, updateData);
+  },
+  delete: (id: string) => FirestoreService.deleteDocument('storePlans', id),
+  setActiveStorePlan: async (storeId: string, storePlanId: string): Promise<void> => {
+    // First, deactivate all store plans for this store
+    const existingPlans = await StorePlanService.getByStore(storeId);
+    const updatePromises = existingPlans.map(plan => 
+      StorePlanService.update(plan.id, { isActive: false })
+    );
+    await Promise.all(updatePromises);
+    
+    // Then activate the selected plan
+    await StorePlanService.update(storePlanId, { isActive: true });
+  },
 };
 
 // Main service export for convenience

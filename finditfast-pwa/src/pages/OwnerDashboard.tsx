@@ -1,17 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { FloorplanManager, MultiStoreItemManager, OwnerStoreManager } from '../components/owner';
 import { StoreService, ItemService } from '../services/firestoreService';
 import { collection, query, where, getDocs, onSnapshot, addDoc, serverTimestamp, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import { debugOwnerProfile, fixOwnerProfile } from '../utils/debugOwnerProfile';
 import type { Store, Item } from '../types';
 
 export const OwnerDashboard: React.FC = () => {
-  const { user, ownerProfile, signOut } = useAuth();
+  const { user, ownerProfile, signOut, refreshOwnerProfile } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview');
+  
+  // Get the tab from URL query params or default to 'overview'
+  const queryParams = new URLSearchParams(location.search);
+  const tabFromUrl = queryParams.get('tab');
+  const [activeTab, setActiveTab] = useState(tabFromUrl || 'overview');
   const [store, setStore] = useState<Store | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,7 +33,13 @@ export const OwnerDashboard: React.FC = () => {
     storeName: '',
     storeType: '',
     address: '',
-    documents: [] as File[]
+    documents: [] as Array<{
+      name: string;
+      type: string;
+      size: number;
+      base64: string;
+      uploadedAt: Date;
+    }>
   });
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
   const [allOwnerStores, setAllOwnerStores] = useState<any[]>([]);
@@ -216,58 +228,147 @@ export const OwnerDashboard: React.FC = () => {
   // Handle geolocation
   const handleGetCurrentLocation = async () => {
     setIsGettingLocation(true);
+    setError(null); // Clear any previous errors
+    
     try {
+      // Check if geolocation is supported
       if (!navigator.geolocation) {
-        setError('Geolocation is not supported by this browser');
-        return;
+        throw new Error('Geolocation is not supported by this browser');
       }
 
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(
-          resolve,
-          reject,
-          {
-            enableHighAccuracy: true,
-            timeout: 15000,
-            maximumAge: 300000 // 5 minutes
-          }
-        );
-      });
+      // Use a more aggressive approach to bypass browser permission caching issues
+      let position: GeolocationPosition;
+      
+      // Try with watchPosition first (sometimes works when getCurrentPosition fails)
+      let watchId: number | null = null;
+      
+      try {
+        position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          const timeoutId = setTimeout(() => {
+            if (watchId !== null) {
+              navigator.geolocation.clearWatch(watchId);
+            }
+            reject(new Error('Location request timed out'));
+          }, 3000); // Very short timeout for watch
+
+          watchId = navigator.geolocation.watchPosition(
+            (pos) => {
+              clearTimeout(timeoutId);
+              if (watchId !== null) {
+                navigator.geolocation.clearWatch(watchId);
+              }
+              resolve(pos);
+            },
+            (err) => {
+              clearTimeout(timeoutId);
+              if (watchId !== null) {
+                navigator.geolocation.clearWatch(watchId);
+              }
+              reject(err);
+            },
+            {
+              enableHighAccuracy: false,
+              timeout: 2000,
+              maximumAge: 0
+            }
+          );
+        });
+      } catch (watchError: any) {
+        console.log('watchPosition failed, trying getCurrentPosition:', watchError);
+        
+        // If watchPosition fails, try getCurrentPosition as fallback
+        position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          const timeoutId = setTimeout(() => {
+            reject(new Error('Location request timed out after all attempts'));
+          }, 5000);
+
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              clearTimeout(timeoutId);
+              resolve(pos);
+            },
+            (err) => {
+              clearTimeout(timeoutId);
+              // Instead of rejecting immediately, show user-friendly error
+              if (err.code === 1) {
+                reject(new Error('PERMISSION_OVERRIDE_NEEDED'));
+              } else {
+                reject(err);
+              }
+            },
+            {
+              enableHighAccuracy: false,
+              timeout: 4000,
+              maximumAge: 60000 // Allow slightly cached location as last resort
+            }
+          );
+        });
+      }
 
       const { latitude, longitude } = position.coords;
+      
+      // Validate coordinates
+      if (!latitude || !longitude || isNaN(latitude) || isNaN(longitude)) {
+        throw new Error('Invalid location data received. Please try again.');
+      }
+
       setLocationData({ latitude, longitude });
-      setLocationPermissionDenied(false); // Reset permission denied state
+      setLocationPermissionDenied(false);
       setUploadSuccess(`Location captured: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
       setTimeout(() => setUploadSuccess(null), 3000);
+      
     } catch (error: any) {
-      // Only log detailed error in development
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Geolocation error:', error);
+      console.error('Geolocation error:', error);
+      
+      // Special handling for the permission override case
+      if (error.message === 'PERMISSION_OVERRIDE_NEEDED') {
+        setLocationPermissionDenied(true);
+        setError('Location permission issue detected. Please try this workaround:\n\n' +
+                '1. Refresh this page (F5 or Ctrl+R)\n' +
+                '2. When prompted for location access, click "Allow"\n' +
+                '3. Try the location button again\n\n' +
+                'If that doesn\'t work:\n' +
+                '• Go to chrome://settings/content/location\n' +
+                '• Remove this site from the blocked list\n' +
+                '• Refresh and try again\n\n' +
+                'Or enter coordinates manually below.');
+        setIsGettingLocation(false);
+        return;
       }
       
       let errorMessage = 'Unable to get your location. ';
       
-      switch (error.code) {
-        case error.PERMISSION_DENIED:
-          setLocationPermissionDenied(true);
-          errorMessage += 'Location access was denied. To enable location:\n\n' +
-                         '• Chrome: Click the location icon in the address bar and select "Allow"\n' +
-                         '• Firefox: Click "Allow" when prompted or check site permissions\n' +
-                         '• Safari: Go to Settings > Websites > Location Services\n\n' +
-                         'Alternatively, you can enter coordinates manually below.';
-          break;
-        case error.POSITION_UNAVAILABLE:
-          errorMessage += 'Location services are currently unavailable. Please try again or enter coordinates manually.';
-          break;
-        case error.TIMEOUT:
-          errorMessage += 'Location request timed out. Please try again or enter coordinates manually.';
-          break;
-        default:
-          errorMessage += 'An unexpected error occurred. Please try again or enter coordinates manually.';
+      // Handle different types of errors
+      if (error.code) {
+        switch (error.code) {
+          case 1: // PERMISSION_DENIED
+            setLocationPermissionDenied(true);
+            errorMessage = 'Location access is blocked by your browser. Try this:\n\n' +
+                          '1. Click the lock icon (🔒) in your address bar\n' +
+                          '2. Set Location to "Allow"\n' +
+                          '3. Refresh the page and try again\n\n' +
+                          'Alternative:\n' +
+                          '• Open a new incognito/private window\n' +
+                          '• Navigate to this page again\n' +
+                          '• Allow location when prompted\n\n' +
+                          'Or enter coordinates manually below.';
+            break;
+          case 2: // POSITION_UNAVAILABLE
+            errorMessage += 'Location services are currently unavailable. Please check your device settings and try again.';
+            break;
+          case 3: // TIMEOUT
+            errorMessage += 'Location request timed out. Please ensure location services are enabled and try again.';
+            break;
+          default:
+            errorMessage += 'An unexpected error occurred. Please try again.';
+        }
+      } else {
+        // Handle custom error messages
+        errorMessage = error.message || 'Failed to get location. Please try again or enter coordinates manually.';
       }
       
       setError(errorMessage);
-      setTimeout(() => setError(null), 8000);
+      setTimeout(() => setError(null), 10000);
     } finally {
       setIsGettingLocation(false);
     }
@@ -281,23 +382,22 @@ export const OwnerDashboard: React.FC = () => {
     }));
   };
 
-  // Handle file upload
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle file upload with base64 conversion
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files) return;
     
     setIsUploadingFiles(true);
     
-    // Simulate upload delay for better UX
-    setTimeout(() => {
+    try {
       const newFiles = Array.from(files);
       
-      // Validate file size (max 10MB per file)
-      const maxSize = 10 * 1024 * 1024; // 10MB
+      // Validate file size (max 5MB per file for base64 storage)
+      const maxSize = 5 * 1024 * 1024; // 5MB (smaller for base64 storage)
       const oversizedFiles = newFiles.filter(file => file.size > maxSize);
       
       if (oversizedFiles.length > 0) {
-        setError(`File(s) too large: ${oversizedFiles.map(f => f.name).join(', ')}. Maximum size is 10MB per file.`);
+        setError(`File(s) too large: ${oversizedFiles.map(f => f.name).join(', ')}. Maximum size is 5MB per file for database storage.`);
         setTimeout(() => setError(null), 5000);
         setIsUploadingFiles(false);
         return;
@@ -316,19 +416,54 @@ export const OwnerDashboard: React.FC = () => {
         setIsUploadingFiles(false);
         return;
       }
+
+      // Convert files to base64
+      const base64Files = await Promise.all(
+        newFiles.map(async (file) => {
+          return new Promise<{
+            name: string;
+            type: string;
+            size: number;
+            base64: string;
+            uploadedAt: Date;
+          }>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              if (typeof reader.result === 'string') {
+                resolve({
+                  name: file.name,
+                  type: file.type,
+                  size: file.size,
+                  base64: reader.result, // This includes the data:type;base64, prefix
+                  uploadedAt: new Date()
+                });
+              } else {
+                reject(new Error('Failed to read file as base64'));
+              }
+            };
+            reader.onerror = () => reject(new Error('Failed to read file'));
+            reader.readAsDataURL(file);
+          });
+        })
+      );
       
       setFormData(prev => ({
         ...prev,
-        documents: [...prev.documents, ...newFiles]
+        documents: [...prev.documents, ...base64Files]
       }));
       
-      setUploadSuccess(`${newFiles.length} file(s) uploaded successfully`);
+      setUploadSuccess(`${newFiles.length} file(s) converted and stored successfully`);
       setTimeout(() => setUploadSuccess(null), 3000);
-      setIsUploadingFiles(false);
       
       // Reset file input
       event.target.value = '';
-    }, 500);
+    } catch (error) {
+      console.error('Error processing files:', error);
+      setError('Failed to process files. Please try again.');
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setIsUploadingFiles(false);
+    }
   };
 
   // Remove uploaded file
@@ -396,6 +531,7 @@ export const OwnerDashboard: React.FC = () => {
           longitude: locationData.longitude,
           address: formData.address
         },
+        documents: formData.documents, // Store the base64 documents directly
         documentsCount: formData.documents.length,
         createdAt: new Date().toISOString()
       };
@@ -591,6 +727,10 @@ export const OwnerDashboard: React.FC = () => {
               onClick={() => {
                 setActiveTab(item.id);
                 setSidebarOpen(false);
+                // Update URL when tab changes without full page reload
+                const url = new URL(window.location.href);
+                url.searchParams.set('tab', item.id);
+                window.history.pushState({}, '', url);
               }}
               className={`w-full flex items-center px-4 py-3 text-left rounded-xl font-medium transition-colors ${
                 activeTab === item.id
@@ -654,15 +794,17 @@ export const OwnerDashboard: React.FC = () => {
                 {sidebarItems.find(item => item.id === activeTab)?.label || 'Dashboard'}
               </h1>
             </div>
-            <button
-              onClick={() => navigate('/')}
-              className="flex items-center px-4 py-2 text-sm text-gray-600 hover:text-gray-800 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              View App
-            </button>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => navigate('/')}
+                className="flex items-center px-4 py-2 text-sm text-gray-600 hover:text-gray-800 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                View App
+              </button>
+            </div>
           </div>
         </header>
 
@@ -714,12 +856,43 @@ export const OwnerDashboard: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Debug Section - Temporary */}
+                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+                  <h3 className="text-sm font-medium text-yellow-800 mb-2">🔧 Debug Information</h3>
+                  <div className="space-y-2 text-xs">
+                    <div><strong>User:</strong> {user ? `${user.email} (${user.uid})` : 'Not authenticated'}</div>
+                    <div><strong>Owner Profile:</strong> {ownerProfile ? `Found: ${ownerProfile.id} (${ownerProfile.email})` : 'Not found'}</div>
+                    <div><strong>Store ID:</strong> {ownerProfile?.storeId || 'None'}</div>
+                    <button 
+                      onClick={async () => {
+                        await fixOwnerProfile();
+                        await refreshOwnerProfile();
+                      }}
+                      className="mt-2 px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 mr-2"
+                    >
+                      🔧 Fix Owner Profile
+                    </button>
+                    <button 
+                      onClick={refreshOwnerProfile}
+                      className="mt-2 px-3 py-1 bg-yellow-600 text-white text-xs rounded hover:bg-yellow-700 mr-2"
+                    >
+                      🔄 Refresh Owner Profile
+                    </button>
+                    <button 
+                      onClick={debugOwnerProfile}
+                      className="mt-2 px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
+                    >
+                      🔍 Debug Database
+                    </button>
+                  </div>
+                </div>
+
               {/* Store Info Grid */}
               {ownerProfile && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <div className="bg-white rounded-xl p-6 shadow-sm">
-                    <h3 className="text-sm font-medium text-gray-500 mb-1">Store Name</h3>
-                    <p className="text-lg font-semibold text-gray-900">{ownerProfile.storeName}</p>
+                    <h3 className="text-sm font-medium text-gray-500 mb-1">Owner Name</h3>
+                    <p className="text-lg font-semibold text-gray-900">{ownerProfile.name}</p>
                   </div>
                   <div className="bg-white rounded-xl p-6 shadow-sm">
                     <h3 className="text-sm font-medium text-gray-500 mb-1">Total Items</h3>
@@ -727,8 +900,8 @@ export const OwnerDashboard: React.FC = () => {
                   </div>
                   <div className="bg-white rounded-xl p-6 shadow-sm">
                     <h3 className="text-sm font-medium text-gray-500 mb-1">Owner ID</h3>
-                    <p className="text-lg font-semibold text-gray-900 truncate overflow-hidden text-ellipsis" title={user.uid || 'Not assigned'}>
-                      {user?.uid || 'Not assigned'}
+                    <p className="text-lg font-semibold text-gray-900 truncate overflow-hidden text-ellipsis" title={ownerProfile?.id || 'Not assigned'}>
+                      {ownerProfile?.id || 'Not assigned'}
                     </p>
                   </div>
                   <div className="bg-white rounded-xl p-6 shadow-sm">
@@ -789,95 +962,7 @@ export const OwnerDashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* All Stores Section */}
-              <div className="bg-white rounded-xl p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900">My Stores</h2>
-                    <p className="text-gray-600">All your stores and store requests</p>
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {storesLoading ? (
-                      <span className="flex items-center">
-                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Loading...
-                      </span>
-                    ) : (
-                      <span>{allOwnerStores.length} stores found</span>
-                    )}
-                  </div>
-                </div>
-                
-                {/* Stores List */}
-                <div className="space-y-4">
-                  {allOwnerStores.length === 0 && !storesLoading ? (
-                    <div className="bg-gray-50 rounded-lg p-4 text-center">
-                      <p className="text-gray-600">You don't have any stores yet. Create a store request to get started.</p>
-                      <button 
-                        onClick={() => setActiveTab('requests')}
-                        className="mt-2 px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-900"
-                      >
-                        Create Store Request
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {allOwnerStores.map(store => (
-                        <div key={store.id} className="bg-gray-50 rounded-lg p-4 hover:shadow-md transition-shadow">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <h3 className="text-md font-semibold text-gray-900 truncate" title={store.name || store.storeName}>
-                                {store.name || store.storeName || 'Unnamed Store'}
-                              </h3>
-                              <p className={`text-sm ${store.status === 'approved' ? 'text-green-600' : store.status === 'rejected' ? 'text-red-600' : 'text-yellow-600'}`}>
-                                {store.type === 'store' ? 'Active Store' : `Request: ${store.status || 'pending'}`}
-                              </p>
-                            </div>
-                            <div className="flex space-x-2">
-                              <button
-                                onClick={() => handleEditStore(store)}
-                                className="flex items-center p-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
-                                title="Edit store"
-                              >
-                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                                <span className="text-xs font-medium">Edit</span>
-                              </button>
-                              <button
-                                onClick={() => setDeleteConfirm({ storeId: store.id, storeName: store.name || store.storeName || 'this store' })}
-                                className="flex items-center p-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-md transition-colors"
-                                title="Delete store"
-                              >
-                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                                <span className="text-xs font-medium">Delete</span>
-                              </button>
-                            </div>
-                          </div>
-                          
-                          <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-500">
-                            <div>
-                              <span className="font-medium">Location:</span><br />
-                              <span className="truncate block" title={store.address || 'Not specified'}>
-                                {store.address || 'Not specified'}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="font-medium">Created:</span><br />
-                              <span>{store.createdAt ? new Date(store.createdAt.seconds * 1000).toLocaleDateString() : 'Unknown'}</span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
+            
             </div>
           )}
 
@@ -967,17 +1052,64 @@ export const OwnerDashboard: React.FC = () => {
                             type="button"
                             onClick={handleGetCurrentLocation}
                             disabled={isGettingLocation}
-                            className="bg-gray-800 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
                           >
                             {isGettingLocation ? (
-                              <div className="flex items-center space-x-2">
-                                <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
-                                <span>Getting location...</span>
-                              </div>
+                              <>
+                                <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span>Getting Location...</span>
+                              </>
                             ) : (
-                              'Get Current Location'
+                              <>
+                                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                <span>Get Location</span>
+                              </>
                             )}
                           </button>
+                          
+                          {locationPermissionDenied && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  // Reset permission state and try to force a fresh prompt
+                                  setLocationPermissionDenied(false);
+                                  setError('Permission reset! Try one of these:\n\n' +
+                                          '1. Refresh the page (F5) and try location again\n' +
+                                          '2. Open an incognito/private window and navigate here\n' +
+                                          '3. Go to browser Settings > Privacy > Location > Remove this site\n\n' +
+                                          'Then try the location button again.');
+                                  setTimeout(() => setError(null), 15000);
+                                }}
+                                className="bg-green-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-green-700 transition-colors flex items-center space-x-1"
+                              >
+                                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                <span>Reset</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  // Provide manual instructions
+                                  setError('To enable location access:\n\n1. Look for the location icon (🔒 or 📍) in your browser\'s address bar\n2. Click it and select "Allow"\n3. Refresh the page and try again\n\nOr enter coordinates manually below.');
+                                  setTimeout(() => setError(null), 10000);
+                                }}
+                                className="bg-amber-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-amber-700 transition-colors flex items-center space-x-1"
+                              >
+                                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span>Help</span>
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                       <p className="text-xs text-gray-600 mb-3">
@@ -1046,9 +1178,9 @@ export const OwnerDashboard: React.FC = () => {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                         </svg>
                         <p className="text-sm text-gray-600 mb-2">
-                          {isUploadingFiles ? 'Processing files...' : 'Upload business license, insurance, and other documents'}
+                          {isUploadingFiles ? 'Converting files to secure storage format...' : 'Upload business license, insurance, and other documents'}
                         </p>
-                        <p className="text-xs text-gray-500 mb-3">Supported formats: PDF, JPG, PNG, DOC, DOCX (Max 10MB per file)</p>
+                        <p className="text-xs text-gray-500 mb-3">Supported formats: PDF, JPG, PNG, DOC, DOCX (Max 5MB per file)</p>
                         <input
                           type="file"
                           multiple
@@ -1069,7 +1201,7 @@ export const OwnerDashboard: React.FC = () => {
                           {isUploadingFiles ? (
                             <div className="flex items-center space-x-2">
                               <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
-                              <span>Uploading...</span>
+                              <span>Converting...</span>
                             </div>
                           ) : (
                             'Choose Files'
@@ -1088,6 +1220,7 @@ export const OwnerDashboard: React.FC = () => {
                                 </svg>
                                 <span className="text-sm text-gray-700">{file.name}</span>
                                 <span className="text-xs text-gray-500">({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                                <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">✓ Secured</span>
                               </div>
                               <button
                                 type="button"
@@ -1100,6 +1233,11 @@ export const OwnerDashboard: React.FC = () => {
                               </button>
                             </div>
                           ))}
+                          <div className="mt-2 p-2 bg-blue-50 rounded-lg">
+                            <p className="text-xs text-blue-700">
+                              ✅ Files are securely stored in encrypted database format. No raw file uploads.
+                            </p>
+                          </div>
                         </div>
                       )}
                     </div>

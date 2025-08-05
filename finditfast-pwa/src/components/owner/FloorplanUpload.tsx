@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { validateImageFile, fileToBase64 } from '../../utilities/imageUtils';
-import { FloorplanService } from '../../services/storageService';
-import { StoreService } from '../../services/firestoreService';
+import { validateImageFile, fileToBase64, compressImage } from '../../utilities/imageUtils';
+import { StorePlanService } from '../../services/firestoreService';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface FloorplanUploadProps {
   storeId: string;
@@ -16,12 +16,14 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
   onUploadSuccess,
   onUploadError,
 }) => {
+  const { user, ownerProfile } = useAuth();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -50,16 +52,14 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
   };
 
   const handleCameraCapture = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.setAttribute('capture', 'environment');
-      fileInputRef.current.click();
+    if (cameraInputRef.current) {
+      cameraInputRef.current.click();
     }
   };
 
   const handleGallerySelect = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.removeAttribute('capture');
-      fileInputRef.current.click();
+    if (galleryInputRef.current) {
+      galleryInputRef.current.click();
     }
   };
 
@@ -71,40 +71,82 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
     setUploadProgress(0);
 
     try {
-      // Upload with progress tracking
-      const downloadUrl = await FloorplanService.upload(
-        selectedFile,
-        storeId,
-        (progress) => setUploadProgress(progress)
-      );
+      if (!user?.uid) {
+        throw new Error('User not authenticated');
+      }
 
-      // Update store record with floorplan URL
-      await StoreService.update(storeId, {
-        floorplanUrl: downloadUrl,
-        updatedAt: new Date() as any, // Firebase will convert to Timestamp
+      if (!ownerProfile) {
+        throw new Error('Store owner profile not found. Please try logging in again.');
+      }
+
+      console.log('� Starting floorplan upload for user:', user.email, user.uid);
+      console.log('✅ Store owner profile verified:', ownerProfile.id);
+
+      // Convert image to base64 format (with compression)
+      setUploadProgress(25);
+      console.log('🖼️ Compressing image...');
+      const compressedFile = await compressImage(selectedFile, 1200, 1200, 0.8);
+      
+      setUploadProgress(50);
+      console.log('📄 Converting to base64...');
+      const base64Data = await fileToBase64(compressedFile);
+      
+      setUploadProgress(75);
+      console.log('📋 Getting existing store plans...');
+      
+      // Get existing store plans to mark others as inactive
+      const existingPlans = await StorePlanService.getByStore(storeId);
+      console.log('📊 Found existing plans:', existingPlans.length);
+      
+      // Deactivate all existing plans first
+      if (existingPlans.length > 0) {
+        console.log('🔄 Deactivating existing plans...');
+        const deactivatePromises = existingPlans.map(plan => 
+          StorePlanService.update(plan.id, { isActive: false })
+        );
+        await Promise.all(deactivatePromises);
+        console.log('✅ Existing plans deactivated');
+      }
+
+      console.log('📝 Creating new store plan...');
+      // Create new store plan
+      const now = new Date();
+      await StorePlanService.create({
+        storeId: storeId,
+        ownerId: user.uid,
+        name: selectedFile.name,
+        type: selectedFile.type,
+        size: compressedFile.size,
+        base64: base64Data,
+        uploadedAt: now as any,
+        originalSize: selectedFile.size,
+        isActive: true, // Make this the active floorplan
       });
 
-      // Success callback
-      onUploadSuccess(downloadUrl);
+      setUploadProgress(100);
+      
+      // Success callback with base64 data URL
+      onUploadSuccess(base64Data);
       
       // Reset form
       setSelectedFile(null);
       setPreviewUrl(null);
       setUploadProgress(0);
       
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+      if (cameraInputRef.current) {
+        cameraInputRef.current.value = '';
+      }
+      if (galleryInputRef.current) {
+        galleryInputRef.current.value = '';
       }
     } catch (err) {
       console.error('Upload error:', err);
       
       // Handle different types of errors
-      let errorMessage = 'Failed to upload floorplan. ';
+      let errorMessage = 'Failed to process floorplan. ';
       const error = err instanceof Error ? err : new Error('Unknown error');
       
-      if (error.message.includes('CORS') || error.message.includes('storage configuration')) {
-        errorMessage = '🚧 Upload service is temporarily unavailable. Please contact support or try again later. The floorplan feature will be available soon.';
-      } else if (error.message.includes('network')) {
+      if (error.message.includes('network')) {
         errorMessage += 'Please check your internet connection and try again.';
       } else if (error.message.includes('permission')) {
         errorMessage += 'You do not have permission to upload files to this location.';
@@ -128,8 +170,11 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
     setError(null);
     setUploadProgress(0);
     
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+    if (cameraInputRef.current) {
+      cameraInputRef.current.value = '';
+    }
+    if (galleryInputRef.current) {
+      galleryInputRef.current.value = '';
     }
   };
 
@@ -159,9 +204,17 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
         </div>
       )}
 
-      {/* File Input (Hidden) */}
+      {/* File Inputs (Hidden) */}
       <input
-        ref={fileInputRef}
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleFileSelect}
+        className="hidden"
+      />
+      <input
+        ref={galleryInputRef}
         type="file"
         accept="image/*"
         onChange={handleFileSelect}
@@ -218,7 +271,7 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
           {isUploading && (
             <div className="space-y-2">
               <div className="flex justify-between text-sm text-gray-600">
-                <span>Uploading...</span>
+                <span>Converting to secure storage format...</span>
                 <span>{Math.round(uploadProgress)}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
@@ -237,7 +290,7 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
               disabled={isUploading}
               className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
             >
-              {isUploading ? 'Uploading...' : 'Upload Floorplan'}
+              {isUploading ? 'Processing...' : 'Upload Floorplan'}
             </button>
 
             <button
@@ -281,7 +334,7 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
             <p className="text-sm text-green-700">
-              Floorplan uploaded successfully! You can now add items to your store layout.
+              Floorplan processed and stored successfully! You can now add items to your store layout.
             </p>
           </div>
         </div>

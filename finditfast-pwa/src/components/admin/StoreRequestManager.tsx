@@ -2,13 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { StoreRequestService } from '../../services/storeRequestService';
 import { StoreApprovalService } from '../../services/storeApprovalService';
 import { AuthService } from '../../services/authService';
+import { DocumentViewer } from '../common/DocumentViewer';
 import type { StoreRequest } from '../../types/permissions';
+import type { Base64Document } from '../../utils/fileUtils';
 
 export const StoreRequestManager: React.FC = () => {
   const [requests, setRequests] = useState<StoreRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [processingRequest, setProcessingRequest] = useState<string | null>(null);
+  const [viewingDocuments, setViewingDocuments] = useState<{
+    documents: Base64Document[];
+    storeName: string;
+  } | null>(null);
 
   useEffect(() => {
     loadStoreRequests();
@@ -28,15 +34,15 @@ export const StoreRequestManager: React.FC = () => {
   };
 
   const handleApprove = async (requestId: string, storeName: string) => {
-    if (!confirm(`Approve store request for "${storeName}"?\n\nThis will create an actual store record in the database.`)) return;
+    if (!confirm(`Approve store request for "${storeName}"?\n\nThis will mark the store as approved and ready for use.`)) return;
 
     try {
       setProcessingRequest(requestId);
       
-      // Use the new approval service to create the actual store
+      // Use the approval service to approve the existing store
       const result = await StoreApprovalService.approveStoreRequest(
         requestId, 
-        'Store request approved by admin and store created'
+        'Store request approved by admin'
       );
       
       // Refresh the list
@@ -46,7 +52,7 @@ export const StoreRequestManager: React.FC = () => {
       const message = `✅ Store "${storeName}" approved successfully!\n\n` +
         `🏪 Store ID: ${result.storeId}\n` +
         `🔗 Owner Linked: ${result.linked ? 'Yes' : 'No'}\n` +
-        `📋 Status: Store created and ready for owner management`;
+        `📋 Status: Store approved and ready for owner management`;
       
       alert(message);
     } catch (err: any) {
@@ -79,6 +85,17 @@ export const StoreRequestManager: React.FC = () => {
       console.error('Error rejecting request:', err);
     } finally {
       setProcessingRequest(null);
+    }
+  };
+
+  const handleViewDocuments = (request: any) => {
+    if (request.documents && request.documents.length > 0) {
+      setViewingDocuments({
+        documents: request.documents,
+        storeName: request.storeName
+      });
+    } else {
+      alert('No documents available for this request.');
     }
   };
 
@@ -188,6 +205,39 @@ export const StoreRequestManager: React.FC = () => {
                         💬 <strong>Notes:</strong> {request.notes}
                       </p>
                     )}
+                    
+                    {/* Documents Section */}
+                    {(request as any).documents && (request as any).documents.length > 0 && (
+                      <div className="mb-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-700">
+                            📎 Documents ({(request as any).documents.length})
+                          </span>
+                          <button
+                            onClick={() => handleViewDocuments(request)}
+                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                          >
+                            View Documents
+                          </button>
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {(request as any).documents.map((doc: any, index: number) => (
+                            <span key={index} className="inline-block mr-2 mb-1 px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                              {doc.name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Show documents count even if no documents array */}
+                    {!(request as any).documents && (request as any).documentsCount > 0 && (
+                      <div className="mb-4">
+                        <span className="text-sm text-gray-600">
+                          📎 {(request as any).documentsCount} document(s) uploaded (legacy format)
+                        </span>
+                      </div>
+                    )}
                   </div>
                   
                   <div className="flex space-x-2 ml-4">
@@ -252,6 +302,15 @@ export const StoreRequestManager: React.FC = () => {
             ))}
           </div>
         </div>
+      )}
+      
+      {/* Document Viewer Modal */}
+      {viewingDocuments && (
+        <DocumentViewer
+          documents={viewingDocuments.documents}
+          title={`Documents for ${viewingDocuments.storeName}`}
+          onClose={() => setViewingDocuments(null)}
+        />
       )}
     </div>
   );

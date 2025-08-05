@@ -28,6 +28,37 @@ export const AdminDashboard: React.FC = () => {
   const [storesLoading, setStoresLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ storeId: string; storeName: string } | null>(null);
   
+  // Download base64 document function
+  const downloadBase64Document = (doc: any) => {
+    try {
+      // Create a blob from the base64 data
+      const byteCharacters = atob(doc.base64.split(',')[1]);
+      const byteNumbers = new Array(byteCharacters.length);
+      
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: doc.type });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = doc.name;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading document:', error);
+      alert('Error downloading document. Please try again.');
+    }
+  };
+  
   // Email and password update states
   const [newEmail, setNewEmail] = useState('');
   const [emailCurrentPassword, setEmailCurrentPassword] = useState('');
@@ -876,24 +907,24 @@ export const AdminDashboard: React.FC = () => {
               </div>
               
               {/* Uploaded Documents */}
-              {selectedRequest.uploadedFiles && selectedRequest.uploadedFiles.length > 0 && (
+              {(selectedRequest as any).documents && (selectedRequest as any).documents.length > 0 && (
                 <div>
                   <h4 className="text-lg font-medium text-gray-900 mb-3">Uploaded Documents</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {selectedRequest.uploadedFiles.map((file: any, index: number) => (
+                    {(selectedRequest as any).documents.map((document: any, index: number) => (
                       <div key={index} className="flex flex-col p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all">
                         <div className="flex items-center mb-2">
                           <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
-                            {file.name.toLowerCase().endsWith('.pdf') ? (
+                            {document.name.toLowerCase().endsWith('.pdf') ? (
                               <svg className="w-7 h-7 text-red-600" fill="currentColor" viewBox="0 0 20 20">
                                 <path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z" />
                                 <path d="M3 8a2 2 0 012-2h2.5a1 1 0 010 2H5v4a1 1 0 01-2 0V8z" />
                               </svg>
-                            ) : file.name.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/) ? (
+                            ) : document.name.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/) ? (
                               <svg className="w-7 h-7 text-green-600" fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
                               </svg>
-                            ) : file.name.toLowerCase().match(/\.(doc|docx)$/) ? (
+                            ) : document.name.toLowerCase().match(/\.(doc|docx)$/) ? (
                               <svg className="w-7 h-7 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
                               </svg>
@@ -904,21 +935,19 @@ export const AdminDashboard: React.FC = () => {
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">{file.name}</p>
-                            <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB • Uploaded with request</p>
+                            <p className="text-sm font-medium text-gray-900 truncate">{document.name}</p>
+                            <p className="text-xs text-gray-500">{(document.size / 1024).toFixed(1)} KB • Uploaded with request</p>
                           </div>
                         </div>
-                        <a 
-                          href={file.url} 
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          onClick={() => downloadBase64Document(document)}
                           className="mt-2 flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                         >
                           <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                           </svg>
                           Download Document
-                        </a>
+                        </button>
                       </div>
                     ))}
                   </div>

@@ -8,8 +8,31 @@ export interface Store {
     latitude: number;
     longitude: number;
   };
-  floorplanUrl?: string;
+  floorplanUrl?: string; // Backward compatibility - deprecated
+  floorplanData?: {
+    name: string;
+    type: string;
+    size: number;
+    base64: string;
+    uploadedAt: Date;
+    originalSize: number;
+  }; // Backward compatibility - deprecated
   ownerId: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface StorePlan {
+  id: string;
+  storeId: string;
+  ownerId: string;
+  name: string;
+  type: string;
+  size: number;
+  base64: string;
+  uploadedAt: Timestamp;
+  originalSize: number;
+  isActive: boolean;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -18,13 +41,14 @@ export interface Item {
   id: string;
   name: string;
   storeId: string;
+  floorplanId?: string; // Which floorplan this item belongs to
   imageUrl: string;
   priceImageUrl?: string;
   position: {
     x: number;
     y: number;
   };
-  price?: number;
+  price?: string; // Changed to string to support formats like "$5.99"
   verified: boolean;
   verifiedAt: Timestamp;
   createdAt: Timestamp;
@@ -33,11 +57,11 @@ export interface Item {
 }
 
 export interface StoreOwner {
-  id: string;
+  id: string;           // Custom short ID like "st_088354"
+  firebaseUid: string;  // Firebase Auth UID for authentication
   name: string;
   email: string;
   phone: string;
-  storeName: string;
   storeId: string;
   createdAt: Timestamp;
 }
@@ -57,6 +81,7 @@ export interface Report {
 
 export interface StoreRequest {
   id: string;
+  storeId: string;     // Generated when request is created
   storeName: string;
   address: string;
   location?: {

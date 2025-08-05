@@ -33,11 +33,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const refreshOwnerProfile = async () => {
     if (user) {
       try {
+        console.log('🔍 AuthContext: Fetching owner profile for user:', user.email, user.uid);
         const profile = await AuthService.getCurrentOwnerProfile();
+        console.log('✅ AuthContext: Owner profile result:', profile ? `Found: ${profile.id}` : 'Not found');
         setOwnerProfile(profile);
       } catch (error) {
-        console.error('Error fetching owner profile:', error);
-        setOwnerProfile(null);
+        console.error('❌ AuthContext: Error fetching owner profile:', error);
+        // Don't clear ownerProfile immediately - user may still have valid session
+        // Only clear if it's a critical auth error
+        if (error instanceof Error && error.message.includes('permission-denied')) {
+          setOwnerProfile(null);
+        }
       }
     } else {
       setOwnerProfile(null);
@@ -49,6 +55,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(user);
       
       if (user) {
+        // User is authenticated, fetch profile
         await refreshOwnerProfile();
       } else {
         setOwnerProfile(null);
@@ -59,13 +66,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     return unsubscribe;
   }, []);
-
-  // Refresh owner profile when user changes
-  useEffect(() => {
-    if (user && !loading) {
-      refreshOwnerProfile();
-    }
-  }, [user, loading]);
 
   const signOut = async () => {
     try {
