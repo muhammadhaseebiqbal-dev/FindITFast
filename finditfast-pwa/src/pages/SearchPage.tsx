@@ -72,44 +72,6 @@ export const SearchPage: React.FC = () => {
     });
   }, []);
 
-  // Handle debounced search
-  useEffect(() => {
-    if (debouncedSearchInput.trim()) {
-      performSearch(debouncedSearchInput);
-    } else {
-      // Clear search results when input is empty
-      setSearchState(prev => ({
-        ...prev,
-        query: '',
-        results: [],
-        isLoading: false,
-        hasSearched: false
-      }));
-    }
-  }, [debouncedSearchInput]);
-
-  // Initialize geolocation on component mount
-  useEffect(() => {
-    const initializeLocation = async () => {
-      const permission = await GeolocationService.checkPermission();
-      
-      if (permission === 'granted') {
-        setLocationPermission('granted');
-        const location = await GeolocationService.getCurrentLocation();
-        setUserLocation(location);
-        GeolocationService.startWatching();
-      } else if (permission === 'denied') {
-        setLocationPermission('denied');
-      }
-    };
-
-    initializeLocation();
-    
-    return () => {
-      GeolocationService.cleanup();
-    };
-  }, []);
-
   const performSearch = useCallback(async (query: string) => {
     if (!query.trim()) return;
 
@@ -142,6 +104,44 @@ export const SearchPage: React.FC = () => {
     }
   }, [userLocation, saveToRecentSearches]);
 
+  // Handle debounced search
+  useEffect(() => {
+    if (debouncedSearchInput.trim()) {
+      performSearch(debouncedSearchInput);
+    } else {
+      // Clear search results when input is empty
+      setSearchState(prev => ({
+        ...prev,
+        query: '',
+        results: [],
+        isLoading: false,
+        hasSearched: false
+      }));
+    }
+  }, [debouncedSearchInput, performSearch]);
+
+  // Initialize geolocation on component mount
+  useEffect(() => {
+    const initializeLocation = async () => {
+      const permission = await GeolocationService.checkPermission();
+      
+      if (permission === 'granted') {
+        setLocationPermission('granted');
+        const location = await GeolocationService.getCurrentLocation();
+        setUserLocation(location);
+        GeolocationService.startWatching();
+      } else if (permission === 'denied') {
+        setLocationPermission('denied');
+      }
+    };
+
+    initializeLocation();
+    
+    return () => {
+      GeolocationService.cleanup();
+    };
+  }, []);
+
   const handleInputChange = useCallback((value: string) => {
     setSearchInput(value);
   }, []);
@@ -152,7 +152,7 @@ export const SearchPage: React.FC = () => {
 
   const handleResultClick = useCallback((result: SearchResult) => {
     console.log('Result clicked:', result);
-    navigate(`/inventory/${result.id}/${result.storeId}`);
+    navigate(`/item/${result.id}/store/${result.storeId}`);
   }, [navigate]);
 
   const handleLocationRequest = useCallback(async () => {

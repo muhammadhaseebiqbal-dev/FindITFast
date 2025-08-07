@@ -75,9 +75,19 @@ export interface Report {
   userId?: string;
   type: 'missing' | 'moved' | 'found';
   timestamp: Timestamp;
+  status?: 'pending' | 'resolved' | 'dismissed';
   location?: {
     latitude: number;
     longitude: number;
+  };
+  metadata?: {
+    itemName?: string;
+    itemImageUrl?: string; // Keep for backward compatibility
+    locationImageUrl?: string; // Keep for backward compatibility
+    itemImageBase64?: string; // New base64 storage
+    locationImageBase64?: string; // New base64 storage
+    comments?: string;
+    reportType?: string;
   };
 }
 

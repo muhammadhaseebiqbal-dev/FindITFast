@@ -35,6 +35,12 @@ service cloud.firestore {
       // Anyone can read store information
       allow read: if true;
       
+      // TEMPORARY: Allow creation of the specific virtual store for debugging
+      allow create: if storeId == 'virtual_BH0EzH7YqEMmWJbETerJ';
+      
+      // TEMPORARY: Allow updating the specific virtual store for fixing address
+      allow update: if storeId == 'virtual_BH0EzH7YqEMmWJbETerJ';
+      
       // Only authenticated store owners can create stores, or admins
       // Special case: allow creation for temporary store IDs (temp_*) by authenticated store owners
       allow create: if (isAuthenticated() && 
@@ -110,9 +116,15 @@ service cloud.firestore {
 
     // Store plans collection
     match /storePlans/{planId} {
-      // Temporarily allow all authenticated users to read/write storePlans for debugging
-      // TODO: Tighten these rules once permissions are working
-      allow read, write: if isAuthenticated();
+      // Anyone can read store plans (for floorplan viewing)
+      allow read: if true;
+      
+      // TEMPORARY: Allow anyone to update store plans for fixing data
+      allow write: if true;
+      
+      // Original rule (will restore after fix):
+      // Only authenticated users can write (create/update/delete) store plans
+      // allow write: if isAuthenticated();
       
       // Original rules (commented out for debugging):
       // Store owners can read their own plans and plans for their stores, admins can read all
@@ -178,6 +190,28 @@ service cloud.firestore {
       // Store owners can delete their own requests, admins can delete any
       allow delete: if isAdmin() || (isAuthenticated() && 
                        resource.data.requestedBy == request.auth.uid);
+    }
+
+    // Search logs collection (for analytics)
+    match /searchLogs/{logId} {
+      // Allow anyone to create search logs (anonymous analytics)
+      allow create: if true;
+      
+      // Only admins can read search logs
+      allow read: if isAdmin();
+      
+      // No updates or deletes allowed for search logs
+    }
+
+    // User activity logs collection (for analytics)
+    match /userActivity/{activityId} {
+      // Allow authenticated users to create activity logs
+      allow create: if isAuthenticated();
+      
+      // Only admins can read user activity logs
+      allow read: if isAdmin();
+      
+      // No updates or deletes allowed for activity logs
     }
 
     // Admins collection

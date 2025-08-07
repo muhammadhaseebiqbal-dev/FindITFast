@@ -4,6 +4,9 @@ import PWAInstallPrompt from './components/PWAInstallPrompt';
 import PWAStatus from './components/PWAStatus';
 import LoadingScreen from './components/LoadingScreen';
 import { SearchPage } from './pages/SearchPage';
+import { ItemDetailsPage } from './pages/ItemDetailsPage';
+import { FloorplanItemViewPage } from './pages/FloorplanItemViewPage';
+import { ReportItemPage } from './pages/ReportItemPage';
 import { InventoryPage } from './pages/InventoryPage';
 import { StoreDetailsPage } from './pages/StoreDetailsPage';
 import { FloorplanPage } from './pages/FloorplanPage';
@@ -66,6 +69,9 @@ function App() {
         <Routes>
           {/* Public routes */}
           <Route path="/" element={<SearchPage />} />
+          <Route path="/item/:itemId/store/:storeId" element={<ItemDetailsPage />} />
+          <Route path="/store/:storeId/floorplan/item" element={<FloorplanItemViewPage />} />
+          <Route path="/report/:itemId/:storeId" element={<ReportItemPage />} />
           <Route path="/inventory/:itemId/:storeId" element={<InventoryPage />} />
           <Route path="/store/:storeId" element={<StoreDetailsPage />} />
           <Route path="/store/:storeId/floorplan" element={<FloorplanPage />} />

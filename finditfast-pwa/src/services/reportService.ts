@@ -14,6 +14,17 @@ export interface CreateReportData {
   };
 }
 
+export interface CreateItemReportData {
+  itemId: string;
+  storeId: string;
+  itemName: string;
+  itemImage: string; // base64 string
+  locationImage: string; // base64 string
+  comments: string;
+  reportedBy: string;
+  reportedAt: Date;
+}
+
 export class ReportServiceClass {
   /**
    * Submit a new report for an item
@@ -189,6 +200,38 @@ export class ReportServiceClass {
     } catch (error) {
       console.error('Error processing report and flagging:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Create an item report with images (base64)
+   */
+  static async createItemReport(data: CreateItemReportData): Promise<string> {
+    try {
+      // Create the report data with base64 images stored directly
+      const reportData: Omit<Report, 'id'> = {
+        itemId: data.itemId,
+        storeId: data.storeId,
+        type: 'missing',
+        timestamp: Timestamp.fromDate(data.reportedAt),
+        userId: data.reportedBy,
+        status: 'pending',
+        metadata: {
+          itemName: data.itemName,
+          itemImageBase64: data.itemImage, // Store base64 directly
+          locationImageBase64: data.locationImage, // Store base64 directly
+          comments: data.comments,
+          reportType: 'missing_with_images'
+        }
+      };
+
+      // Save to database
+      const reportId = await ReportService.create(reportData);
+      
+      return reportId;
+    } catch (error) {
+      console.error('Error creating item report:', error);
+      throw new Error('Failed to submit report. Please try again.');
     }
   }
 

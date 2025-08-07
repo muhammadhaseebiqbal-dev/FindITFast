@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { FloorplanManager, MultiStoreItemManager, OwnerStoreManager, EnhancedInventoryManager } from '../components/owner';
+import { ReportsList } from '../components/reports/ReportsList';
 import { StoreService, ItemService } from '../services/firestoreService';
 import { collection, query, where, getDocs, onSnapshot, addDoc, serverTimestamp, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -1453,7 +1454,12 @@ export const OwnerDashboard: React.FC = () => {
           {activeTab === 'reports' && (
             <div className="bg-white rounded-xl p-6 shadow-sm animate-fade-in">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Reports & Analytics</h2>
-              <p className="text-gray-600">Customer feedback and analytics will be displayed here.</p>
+              {ownerProfile?.id && (
+                <ReportsList storeOwnerId={ownerProfile.id} />
+              )}
+              {!ownerProfile?.id && (
+                <p className="text-gray-600">Loading reports...</p>
+              )}
             </div>
           )}
           </div>

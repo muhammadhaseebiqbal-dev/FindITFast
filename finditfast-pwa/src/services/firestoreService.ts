@@ -200,6 +200,34 @@ export const ReportService = {
       limit(50)
     ]);
   },
+  getByStoreOwner: async (ownerId: string) => {
+    // First get all stores owned by this owner
+    const stores = await StoreService.getByOwner(ownerId);
+    const storeIds = stores.map(store => store.id);
+    
+    if (storeIds.length === 0) return [];
+    
+    // Get reports for all stores owned by this owner
+    const allReports = await Promise.all(
+      storeIds.map(storeId => 
+        FirestoreService.getCollection<Report>('reports', [
+          where('storeId', '==', storeId),
+          orderBy('timestamp', 'desc')
+        ])
+      )
+    );
+    
+    // Flatten and sort all reports
+    return allReports
+      .flat()
+      .sort((a, b) => {
+        const timeA = a.timestamp?.toDate?.()?.getTime() || 0;
+        const timeB = b.timestamp?.toDate?.()?.getTime() || 0;
+        return timeB - timeA;
+      });
+  },
+  updateStatus: (id: string, status: 'pending' | 'resolved' | 'dismissed') =>
+    FirestoreService.updateDocument('reports', id, { status }),
   create: (report: Omit<Report, 'id'>) => FirestoreService.addDocument<Report>('reports', report),
   update: (id: string, data: Partial<Report>) => FirestoreService.updateDocument('reports', id, data),
   delete: (id: string) => FirestoreService.deleteDocument('reports', id),
