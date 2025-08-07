@@ -40,11 +40,13 @@ export interface StorePlan {
 export interface Item {
   id: string;
   name: string;
+  category?: string; // Item category for organization
+  description?: string; // Optional item description
   storeId: string;
   floorplanId?: string; // Which floorplan this item belongs to
   imageUrl: string;
   priceImageUrl?: string;
-  position: {
+  position?: {
     x: number;
     y: number;
   };

@@ -118,3 +118,19 @@ export const fileToBase64 = (file: File): Promise<string> => {
     reader.readAsDataURL(file);
   });
 };
+
+/**
+ * Normalize base64 data to ensure it's a valid data URL
+ * @param base64Data - Base64 string that may or may not have data URL prefix
+ * @param mimeType - MIME type for the data (e.g., 'image/jpeg')
+ * @returns string - Properly formatted data URL
+ */
+export const normalizeBase64DataUrl = (base64Data: string, mimeType: string = 'image/jpeg'): string => {
+  // If it already starts with data:, return as is
+  if (base64Data.startsWith('data:')) {
+    return base64Data;
+  }
+  
+  // If it doesn't have the data URL prefix, add it
+  return `data:${mimeType};base64,${base64Data}`;
+};

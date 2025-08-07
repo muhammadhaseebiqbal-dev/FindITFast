@@ -18,6 +18,7 @@
     "test:manager": "node scripts/test-data-manager.js",
     "test:demo": "node scripts/demo-populate.js",
     "test:store-request": "node scripts/create-test-store-request.js",
+    "demo:inventory": "node scripts/create-enhanced-inventory-demo.js",
     "admin:create": "node scripts/create-app-admin.js"
   },
   "dependencies": {

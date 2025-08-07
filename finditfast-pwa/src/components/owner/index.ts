@@ -4,3 +4,6 @@ export { ItemManager } from './ItemManager';
 export { MultiStoreItemManager } from './MultiStoreItemManager';
 export { OwnerStoreManager } from './OwnerStoreManager';
 export { OwnerStoreRequestForm } from './OwnerStoreRequestForm';
+export { EnhancedInventoryManager } from './EnhancedInventoryManager';
+export { StoreCard } from './StoreCard';
+export { InventoryModal } from './InventoryModal';

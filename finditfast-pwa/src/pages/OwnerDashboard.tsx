@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { FloorplanManager, MultiStoreItemManager, OwnerStoreManager } from '../components/owner';
+import { FloorplanManager, MultiStoreItemManager, OwnerStoreManager, EnhancedInventoryManager } from '../components/owner';
 import { StoreService, ItemService } from '../services/firestoreService';
 import { collection, query, where, getDocs, onSnapshot, addDoc, serverTimestamp, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -1445,8 +1445,8 @@ export const OwnerDashboard: React.FC = () => {
           )}
 
           {activeTab === 'inventory' && (
-            <div className="bg-white rounded-xl shadow-sm">
-              <MultiStoreItemManager />
+            <div className="bg-gray-50 min-h-screen">
+              <EnhancedInventoryManager />
             </div>
           )}
 

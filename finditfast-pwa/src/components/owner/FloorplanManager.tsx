@@ -6,6 +6,7 @@ import { StorePlanService } from '../../services/firestoreService';
 import { FloorplanUpload } from './FloorplanUpload';
 import { InventoryManager } from './InventoryManager';
 import { ensureStoreOwnerRecord } from '../../utilities/storeOwnerUtils';
+import { normalizeBase64DataUrl } from '../../utilities/imageUtils';
 import type { Store, StorePlan } from '../../types';
 
 interface ApprovedStoreRequest {
@@ -388,7 +389,7 @@ export const FloorplanManager: React.FC = () => {
                               <div className="flex items-start space-x-3">
                                 {/* Floorplan Thumbnail */}
                                 <img
-                                  src={floorplan.base64}
+                                  src={normalizeBase64DataUrl(floorplan.base64, floorplan.type)}
                                   alt={floorplan.name}
                                   className={`w-16 h-16 object-cover rounded border cursor-pointer hover:opacity-75 transition-opacity ${floorplan.isActive ? 'border-blue-300' : 'border-gray-300'}`}
                                   onClick={(e) => {
@@ -400,7 +401,7 @@ export const FloorplanManager: React.FC = () => {
                                         <html>
                                           <head><title>${floorplan.name}</title></head>
                                           <body style="margin:0; display:flex; justify-content:center; align-items:center; min-height:100vh; background:#f0f0f0;">
-                                            <img src="${floorplan.base64}" alt="${floorplan.name}" style="max-width:100%; max-height:100%; object-fit:contain;" />
+                                            <img src="${normalizeBase64DataUrl(floorplan.base64, floorplan.type)}" alt="${floorplan.name}" style="max-width:100%; max-height:100%; object-fit:contain;" />
                                           </body>
                                         </html>
                                       `);

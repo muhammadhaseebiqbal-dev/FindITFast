@@ -3,6 +3,7 @@ import { uploadBytes, ref as storageRef, getDownloadURL } from 'firebase/storage
 import { Timestamp } from 'firebase/firestore';
 import { storage } from '../../services/firebase';
 import { ItemService } from '../../services/firestoreService';
+import { normalizeBase64DataUrl } from '../../utilities/imageUtils';
 import type { StorePlan, Item } from '../../types';
 
 interface InventoryManagerProps {
@@ -252,7 +253,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
             <div className="relative inline-block border border-gray-300 rounded-lg overflow-hidden">
               <img
                 ref={imageRef}
-                src={storePlan.base64}
+                src={normalizeBase64DataUrl(storePlan.base64, storePlan.type)}
                 alt={storePlan.name}
                 className="max-w-full max-h-96 cursor-crosshair"
                 onClick={handleImageClick}
