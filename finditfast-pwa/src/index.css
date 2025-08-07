@@ -410,6 +410,17 @@
     }
   }
 
+  @keyframes blink-intense {
+    0%, 50% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    25% {
+      opacity: 0.3;
+      transform: scale(1.1);
+    }
+  }
+
   .animate-slide-in-right {
     animation: slide-in-right 0.3s ease-out;
   }
@@ -420,5 +431,9 @@
 
   .animate-scale-in {
     animation: scale-in 0.2s ease-out;
+  }
+
+  .animate-blink-intense {
+    animation: blink-intense 1s ease-in-out infinite;
   }
 }

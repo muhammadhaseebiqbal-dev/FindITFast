@@ -17,9 +17,16 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result, onClick }) => {
     return `${distance.toFixed(1)}km`;
   };
 
-  const formatPrice = (price?: number): string => {
+  const formatPrice = (price?: number | string): string => {
     if (!price) return '';
-    return `$${price.toFixed(2)}`;
+    
+    // Convert string to number if needed
+    const numPrice = typeof price === 'string' ? parseFloat(price) : price;
+    
+    // Check if it's a valid number
+    if (isNaN(numPrice) || numPrice <= 0) return '';
+    
+    return `$${numPrice.toFixed(2)}`;
   };
 
   const formatVerificationStatus = (verified: boolean, verifiedAt: any): string => {

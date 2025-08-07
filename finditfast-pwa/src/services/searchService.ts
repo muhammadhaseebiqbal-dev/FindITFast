@@ -1,5 +1,5 @@
 import { ItemService, StoreService } from './firestoreService';
-import { trackSearch } from './analyticsService';
+// import { trackSearch } from './analyticsService';
 // Import types are used in JSDoc comments and type annotations
 import type { SearchResult, SearchHistory } from '../types/search';
 
@@ -15,20 +15,31 @@ export class SearchService {
       return [];
     }
 
+    console.log('🔍 SearchService.searchItems called with query:', query);
+
     try {
       // Search for items using the existing search method
+      console.log('📦 Calling ItemService.search with:', query.toLowerCase());
       const items = await ItemService.search(query.toLowerCase());
+      console.log('📦 ItemService.search returned:', items.length, 'items:', items);
       
       // Get all stores to join with items
+      console.log('🏪 Calling StoreService.getAll');
       const stores = await StoreService.getAll();
+      console.log('🏪 StoreService.getAll returned:', stores.length, 'stores:', stores);
       const storeMap = new Map(stores.map(store => [store.id, store]));
 
       // Combine items with their store information
       const searchResults: SearchResult[] = items
         .map(item => {
+          console.log('🔄 Processing item:', item.id, 'for store:', item.storeId);
           const store = storeMap.get(item.storeId);
-          if (!store) return null;
+          if (!store) {
+            console.log('❌ No store found for item:', item.id, 'storeId:', item.storeId);
+            return null;
+          }
 
+          console.log('✅ Store found for item:', item.id, 'store:', store.name);
           const result: SearchResult = {
             ...item,
             store,
@@ -44,16 +55,25 @@ export class SearchService {
         })
         .filter((result): result is SearchResult => result !== null);
 
+      console.log('🎯 Search results after processing:', searchResults.length, 'results');
+      
       // Rank and sort results
       const rankedResults = this.rankSearchResults(searchResults);
+      console.log('📊 Ranked results:', rankedResults.length, 'results');
 
       // Track search analytics
       try {
-        trackSearch({
+        // Temporarily disable analytics to debug search
+        console.log('Would track search:', {
           searchQuery: query,
           resultsCount: rankedResults.length,
           location: userLocation
         });
+        // trackSearch({
+        //   searchQuery: query,
+        //   resultsCount: rankedResults.length,
+        //   location: userLocation
+        // });
       } catch (error) {
         console.log('Analytics tracking failed:', error);
       }
