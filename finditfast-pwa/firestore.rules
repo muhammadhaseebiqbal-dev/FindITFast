@@ -30,6 +30,12 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // Public app configuration (read for everyone, write for admins)
+    match /appConfig/{docId} {
+      allow read: if docId == 'public' || isAdmin();
+      allow write: if isAdmin();
+    }
+
     // Stores collection
     match /stores/{storeId} {
       // Anyone can read store information

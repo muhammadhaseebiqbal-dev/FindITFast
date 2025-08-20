@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { auth, db } from '../services/firebase';
-import { collection, query, where, getDocs, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, onSnapshot, doc, updateDoc, setDoc, getDoc } from 'firebase/firestore';
 import { EmailAuthProvider, reauthenticateWithCredential, updateEmail, updatePassword, sendEmailVerification, verifyBeforeUpdateEmail } from 'firebase/auth';
 
 export const AdminDashboard: React.FC = () => {
@@ -27,6 +27,10 @@ export const AdminDashboard: React.FC = () => {
   const [stores, setStores] = useState<any[]>([]);
   const [storesLoading, setStoresLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ storeId: string; storeName: string } | null>(null);
+  // App banner text state
+  const [homeBannerText, setHomeBannerText] = useState<string>('');
+  const [savingBanner, setSavingBanner] = useState<boolean>(false);
+  const [bannerStatus, setBannerStatus] = useState<{success: boolean; message: string} | null>(null);
   
   // Download base64 document function
   const downloadBase64Document = (doc: any) => {
@@ -560,6 +564,15 @@ export const AdminDashboard: React.FC = () => {
       )
     },
     { 
+      id: 'announcement', 
+      label: 'Home Banner', 
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5h10M11 9h7M11 13h10M3 9h4m-4 4h7m-7 4h10" />
+        </svg>
+      )
+    },
+    { 
       id: 'requests', 
       label: 'Store Requests', 
       icon: (
@@ -791,6 +804,80 @@ export const AdminDashboard: React.FC = () => {
       storeOwners: 8
     });
   }, []);
+
+  // Load existing appConfig public doc for banner text
+  useEffect(() => {
+    if (!isAppAdmin) return;
+    
+    // Set up real-time listener for appConfig changes
+    const configRef = doc(db, 'appConfig', 'public');
+    const unsubscribe = onSnapshot(
+      configRef,
+      (snapshot) => {
+        try {
+          if (snapshot.exists()) {
+            const data = snapshot.data();
+            console.log('📢 AppConfig loaded:', data);
+            if (typeof data.homeBannerText === 'string' && data.homeBannerText.trim()) {
+              setHomeBannerText(data.homeBannerText.trim());
+            } else {
+              setHomeBannerText('');
+            }
+          } else {
+            console.log('📢 AppConfig document does not exist yet');
+            setHomeBannerText('');
+          }
+        } catch (error) {
+          console.error('❌ Error loading appConfig:', error);
+          setHomeBannerText('');
+        }
+      },
+      (error) => {
+        console.error('❌ Error in appConfig listener:', error);
+        setHomeBannerText('');
+      }
+    );
+
+    return () => unsubscribe();
+  }, [isAppAdmin]);
+
+  const handleSaveBanner = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAppAdmin) return;
+    
+    if (!homeBannerText.trim()) {
+      setBannerStatus({ success: false, message: 'Please enter some text for the banner.' });
+      return;
+    }
+    
+    try {
+      setSavingBanner(true);
+      setBannerStatus(null);
+      console.log('💾 Saving banner text:', homeBannerText);
+      
+      const ref = doc(db, 'appConfig', 'public');
+      await setDoc(ref, { 
+        homeBannerText: homeBannerText.trim(),
+        updatedAt: new Date(),
+        updatedBy: user?.uid || 'admin'
+      }, { merge: true });
+      
+      console.log('✅ Banner text saved successfully');
+      setBannerStatus({ success: true, message: 'Banner text saved.' });
+      
+      // Clear status after 3 seconds
+      setTimeout(() => setBannerStatus(null), 3000);
+      
+    } catch (err) {
+      console.error('❌ Error saving banner text:', err);
+      setBannerStatus({ success: false, message: 'Failed to save banner text. Try again.' });
+      
+      // Clear error status after 5 seconds
+      setTimeout(() => setBannerStatus(null), 5000);
+    } finally {
+      setSavingBanner(false);
+    }
+  };
 
   // Only allow access to actual app admin
   if (!isAppAdmin) {
@@ -2313,6 +2400,64 @@ export const AdminDashboard: React.FC = () => {
             </div>
           )}
 
+          {activeTab === 'announcement' && (
+            <div className="bg-white rounded-xl p-6 shadow-sm">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Home Banner</h2>
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <form onSubmit={handleSaveBanner} className="space-y-3">
+                  <label className="block text-sm text-gray-700" htmlFor="home-banner-text-ann">
+                    Text shown on the home page banner
+                  </label>
+                  <textarea
+                    id="home-banner-text-ann"
+                    value={homeBannerText}
+                    onChange={(e) => setHomeBannerText(e.target.value)}
+                    placeholder="Enter announcement text"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[120px]"
+                  />
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-gray-500">All users will see this when no search is active.</p>
+                    <div className="flex space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const ref = doc(db, 'appConfig', 'public');
+                          getDoc(ref).then(snap => {
+                            if (snap.exists()) {
+                              console.log('🔍 Current config:', snap.data());
+                              alert(`Current config: ${JSON.stringify(snap.data(), null, 2)}`);
+                            } else {
+                              console.log('🔍 No config document exists');
+                              alert('No config document exists yet');
+                            }
+                          }).catch(err => {
+                            console.error('🔍 Error checking config:', err);
+                            alert(`Error: ${err.message}`);
+                          });
+                        }}
+                        className="px-3 py-2 text-gray-600 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
+                      >
+                        Debug Config
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={savingBanner}
+                        className={`px-4 py-2 text-white rounded-lg font-medium ${savingBanner ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                      >
+                        {savingBanner ? 'Saving...' : 'Save'}
+                      </button>
+                    </div>
+                  </div>
+                  {bannerStatus && (
+                    <div className={`p-2 rounded text-sm ${bannerStatus.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                      {bannerStatus.message}
+                    </div>
+                  )}
+                </form>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'settings' && (
             <div className="bg-white rounded-xl p-6 shadow-sm">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Settings</h2>
@@ -2480,6 +2625,61 @@ export const AdminDashboard: React.FC = () => {
                         updateStatus.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
                       }`}>
                         {updateStatus.message}
+                      </div>
+                    )}
+                  </form>
+                </div>
+              </div>
+
+              {/* App Configuration */}
+              <div className="mt-8">
+                <h3 className="text-md font-semibold text-gray-800 mb-3">App Configuration</h3>
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <form onSubmit={handleSaveBanner} className="space-y-3">
+                    <label className="block text-sm text-gray-700" htmlFor="home-banner-text">Home Banner Text</label>
+                    <textarea
+                      id="home-banner-text"
+                      value={homeBannerText}
+                      onChange={(e) => setHomeBannerText(e.target.value)}
+                      placeholder="Enter the announcement text to show on the home page"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px]"
+                    />
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-gray-500">Visible on the main Search page when no search is active.</p>
+                      <div className="flex space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const ref = doc(db, 'appConfig', 'public');
+                            getDoc(ref).then(snap => {
+                              if (snap.exists()) {
+                                console.log('🔍 Current config (settings):', snap.data());
+                                alert(`Current config: ${JSON.stringify(snap.data(), null, 2)}`);
+                              } else {
+                                console.log('🔍 No config document exists (settings)');
+                                alert('No config document exists yet');
+                              }
+                            }).catch(err => {
+                              console.error('🔍 Error checking config (settings):', err);
+                              alert(`Error: ${err.message}`);
+                            });
+                          }}
+                          className="px-3 py-2 text-gray-600 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
+                        >
+                          Debug Config
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={savingBanner}
+                          className={`px-4 py-2 text-white rounded-lg font-medium ${savingBanner ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                        >
+                          {savingBanner ? 'Saving...' : 'Save Banner'}
+                        </button>
+                      </div>
+                    </div>
+                    {bannerStatus && (
+                      <div className={`p-2 rounded text-sm ${bannerStatus.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                        {bannerStatus.message}
                       </div>
                     )}
                   </form>
