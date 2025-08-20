@@ -1,4 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../services/firebase';
 import { useNavigate } from 'react-router-dom';
 import { SearchResults } from '../components/search';
 import { MobileLayout, MobileContent } from '../components/common/MobileLayout';
@@ -30,6 +32,8 @@ export const SearchPage: React.FC = () => {
   const navigate = useNavigate();
   
   const [searchInput, setSearchInput] = useState('');
+  const defaultBannerText = 'Welcome to FindItFast! Browse our latest deals and featured stores. Check back often for new updates and announcements.';
+  const [bannerText, setBannerText] = useState<string>(defaultBannerText);
   const [searchState, setSearchState] = useState<SearchState>({
     query: '',
     results: [],
@@ -146,6 +150,38 @@ export const SearchPage: React.FC = () => {
     };
   }, []);
 
+  // Subscribe to global banner text from Firestore
+  useEffect(() => {
+    const configRef = doc(db, 'appConfig', 'public');
+    const unsubscribe = onSnapshot(
+      configRef,
+      (snapshot) => {
+        try {
+          if (snapshot.exists()) {
+            const data = snapshot.data();
+            console.log('🏠 Home banner config loaded:', data);
+            if (data && typeof data.homeBannerText === 'string' && data.homeBannerText.trim()) {
+              setBannerText(data.homeBannerText.trim());
+            } else {
+              setBannerText(defaultBannerText);
+            }
+          } else {
+            console.log('🏠 Home banner config does not exist, using default');
+            setBannerText(defaultBannerText);
+          }
+        } catch (error) {
+          console.error('❌ Error loading home banner config:', error);
+          setBannerText(defaultBannerText);
+        }
+      },
+      (error) => {
+        console.error('❌ Error in home banner listener:', error);
+        setBannerText(defaultBannerText);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
   const handleInputChange = useCallback((value: string) => {
     setSearchInput(value);
   }, []);
@@ -215,7 +251,7 @@ export const SearchPage: React.FC = () => {
             <div className="px-4 mb-6">
               <div className="bg-gray-200 rounded-xl p-4">
                 <p className="text-sm text-gray-700 leading-relaxed">
-                  Welcome to FindItFast! Browse our latest deals and featured stores. Check back often for new updates and announcements.
+                  {bannerText}
                 </p>
               </div>
             </div>
