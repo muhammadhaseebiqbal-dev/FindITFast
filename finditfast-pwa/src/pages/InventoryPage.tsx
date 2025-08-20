@@ -5,7 +5,6 @@ import { ItemLocationViewer } from '../components/inventory/ItemLocationViewer';
 import { ItemMissingReport } from '../components/inventory/ItemMissingReport';
 import { UserContributionForm } from '../components/inventory/UserContributionForm';
 import { StorePlanService, ItemService, StoreService } from '../services/firestoreService';
-import { SearchService } from '../services/searchService';
 import type { SearchResult } from '../types/search';
 import type { StorePlan } from '../types';
 
@@ -56,8 +55,8 @@ export const InventoryPage: React.FC = () => {
 
       // Load store plan
       try {
-        const plans = await StorePlanService.getStorePlansForStore(storeId);
-        const activePlan = plans.find(plan => plan.isActive);
+        const plans = await StorePlanService.getByStore(storeId);
+        const activePlan = plans.find((plan: StorePlan) => plan.isActive);
         setStorePlan(activePlan || null);
       } catch (planError) {
         console.warn('Could not load store plan:', planError);
@@ -149,7 +148,7 @@ export const InventoryPage: React.FC = () => {
       {currentView === 'arrived' && (
         <ItemLocationViewer
           searchResult={searchResult}
-          storePlan={storePlan}
+          storePlan={storePlan || undefined}
           onItemMissing={handleItemMissing}
           onUserUpload={handleUserUpload}
         />

@@ -12,6 +12,8 @@ export const FloorplanItemViewPage: React.FC = () => {
   
   const itemId = searchParams.get('itemId');
   
+  console.log('🎯 FloorplanItemViewPage: Component rendered with:', { storeId, itemId });
+  
   const [storePlan, setStorePlan] = useState<StorePlan | null>(null);
   const [targetItem, setTargetItem] = useState<Item | null>(null);
   const [allItems, setAllItems] = useState<Item[]>([]);
@@ -45,34 +47,53 @@ export const FloorplanItemViewPage: React.FC = () => {
         setError(null);
 
         // Load store information
+        console.log('📦 Loading store data for:', storeId);
         const storeData = await StoreService.getById(storeId);
         if (!storeData) {
+          console.error('❌ Store not found:', storeId);
           setError('Store not found');
           setIsLoading(false);
           return;
         }
+        console.log('✅ Store data loaded:', storeData.name);
         setStore(storeData);
 
         // Load active store plan
+        console.log('🗺️ Loading store plans for:', storeId);
         const storePlans = await StorePlanService.getByStore(storeId);
+        console.log('📋 Store plans found:', storePlans.length);
         const activePlan = storePlans.find(plan => plan.isActive);
         
         if (!activePlan) {
+          console.error('❌ No active floorplan found for store:', storeId);
           setError('No floorplan available for this store');
           setIsLoading(false);
           return;
         }
+        console.log('✅ Active plan found:', activePlan.name, 'size:', activePlan.size);
         setStorePlan(activePlan);
 
         // Load all items for the store to show on floorplan
+        console.log('📦 Loading items for store:', storeId);
         const storeItems = await ItemService.getByStore(storeId);
+        console.log('📦 Items loaded:', storeItems.length, 'items');
+        console.log('📦 Items with positions:', storeItems.map(item => ({
+          id: item.id,
+          name: item.name,
+          position: item.position,
+          hasPosition: !!(item.position?.x !== undefined && item.position?.y !== undefined)
+        })));
         setAllItems(storeItems);
 
         // Load specific target item if provided
         if (itemId) {
+          console.log('🎯 Loading target item:', itemId);
           const item = await ItemService.getById(itemId);
           if (item) {
+            console.log('✅ Target item loaded:', item.name, 'position:', item.position);
             setTargetItem(item);
+          } else {
+            console.error('❌ Target item not found:', itemId);
           }
         }
 
@@ -231,7 +252,7 @@ export const FloorplanItemViewPage: React.FC = () => {
           {/* Floorplan Container */}
           <div 
             ref={floorplanRef}
-            className={`relative w-full h-full overflow-hidden ${targetItem ? 'pt-12' : ''} cursor-grab ${isDragging ? 'cursor-grabbing' : ''}`}
+            className={`relative w-full h-full overflow-hidden ${targetItem ? 'pt-12' : ''}`}
             style={{ minHeight: 'calc(100vh - 140px)' }}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
@@ -242,54 +263,73 @@ export const FloorplanItemViewPage: React.FC = () => {
             {/* Floorplan Image */}
             {!imageError ? (
               <div
-                className="relative"
+                className="relative w-full h-full flex items-center justify-center"
                 style={{
-                  transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
-                  transformOrigin: '0 0',
-                  transition: isDragging ? 'none' : 'transform 0.2s ease-out'
+                  cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'
                 }}
               >
-                <img
-                  ref={imageRef}
-                  src={floorplanImageUrl}
-                  alt={`Floorplan for ${store.name}`}
-                  className="max-w-none"
-                  onLoad={handleImageLoad}
-                  onError={handleImageError}
-                  draggable={false}
-                />
-
-                {/* Item Pins */}
-                {allItems.map((item) => {
-                  if (!item.position) return null;
+                {/* Image container with zoom and pan - EXACT COPY from FullScreenInventory */}
+                <div 
+                  className="relative w-full h-full"
+                  style={{
+                    transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
+                    transformOrigin: 'center'
+                  }}
+                >
+                  <img
+                    ref={imageRef}
+                    src={floorplanImageUrl}
+                    alt={`Floorplan for ${store.name}`}
+                    className="max-w-full max-h-[calc(100vh-200px)] transition-transform duration-200"
+                    onLoad={handleImageLoad}
+                    onError={handleImageError}
+                    draggable={false}
+                  />
                   
-                  const isTargetItem = targetItem?.id === item.id;
-                  const pinClassName = isTargetItem 
-                    ? `absolute w-8 h-8 transform -translate-x-1/2 -translate-y-1/2 z-10 ${
-                        isBlinking ? 'animate-blink-intense' : ''
-                      }`
-                    : 'absolute w-4 h-4 transform -translate-x-1/2 -translate-y-1/2 z-10';
-
-                  return (
-                    <div
-                      key={item.id}
-                      className={pinClassName}
-                      style={{
-                        left: `${item.position.x}px`,
-                        top: `${item.position.y}px`
-                      }}
-                      title={item.name}
-                    >
-                      {isTargetItem ? (
-                        <div className="w-full h-full bg-red-500 border-3 border-white rounded-full shadow-lg flex items-center justify-center">
-                          <span className="text-white text-sm font-bold">!</span>
-                        </div>
-                      ) : (
-                        <div className="w-full h-full bg-blue-500 border border-white rounded-full shadow-sm" />
-                      )}
-                    </div>
-                  );
-                })}
+                  {/* Show existing item pins - EXACT COPY from FullScreenInventory */}
+                  {allItems.map((item) => {
+                    if (!item.position) return null;
+                    
+                    console.log('🖼️ Rendering pin for:', item.name, 'at position:', item.position);
+                    
+                    const isTargetItem = targetItem?.id === item.id;
+                    
+                    return (
+                      <div
+                        key={item.id}
+                        className="absolute z-20 pointer-events-none"
+                        style={{ 
+                          left: `${item.position.x}%`, 
+                          top: `${item.position.y}%`,
+                          transform: `translate(-50%, -50%)`
+                        }}
+                      >
+                        {isTargetItem ? (
+                          // Target item with blinking effect
+                          <div className="relative">
+                            {isBlinking && (
+                              <>
+                                {/* Pulsing ring effect */}
+                                <div className="absolute inset-0 w-12 h-12 bg-green-500 rounded-full animate-ping opacity-75" 
+                                     style={{ transform: `translate(-50%, -50%)` }}></div>
+                                <div className="absolute inset-0 w-8 h-8 bg-green-600 rounded-full animate-pulse"
+                                     style={{ transform: `translate(-50%, -50%)` }}></div>
+                              </>
+                            )}
+                            {/* Center dot */}
+                            <div className="absolute w-12 h-12 bg-green-500 rounded-full border-4 border-white shadow-lg flex items-center justify-center"
+                                 style={{ transform: `translate(-50%, -50%)` }}>
+                              <span className="text-white text-sm font-bold">!</span>
+                            </div>
+                          </div>
+                        ) : (
+                          // Regular item pin
+                          <div className="w-6 h-6 bg-blue-400 rounded-full border-2 border-white shadow-md"></div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             ) : (
               <div className="flex items-center justify-center h-full">

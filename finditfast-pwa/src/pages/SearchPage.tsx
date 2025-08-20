@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { SearchResults } from '../components/search';
 import { MobileLayout, MobileContent } from '../components/common/MobileLayout';
 import { LazyLoad } from '../components/performance/LazyLoading';
+import { RequestNewStoreItem } from '../components/user/RequestNewStoreItem';
 import { SearchService } from '../services/searchService';
 import { GeolocationService } from '../services/geolocationService';
 import type { SearchResult, SearchState } from '../types/search';
@@ -37,6 +38,7 @@ export const SearchPage: React.FC = () => {
     hasSearched: false
   });
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [showRequestForm, setShowRequestForm] = useState(false);
   
   const [userLocation, setUserLocation] = useState<LocationCoordinates | null>(null);
   const [locationPermission, setLocationPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
@@ -132,6 +134,8 @@ export const SearchPage: React.FC = () => {
         GeolocationService.startWatching();
       } else if (permission === 'denied') {
         setLocationPermission('denied');
+      } else {
+        // Permission not determined
       }
     };
 
@@ -151,8 +155,8 @@ export const SearchPage: React.FC = () => {
   }, []);
 
   const handleResultClick = useCallback((result: SearchResult) => {
-    console.log('Result clicked:', result);
-    navigate(`/item/${result.id}/store/${result.storeId}`);
+    // Use the store request document ID for navigation, not the item's storeId
+    navigate(`/item/${result.id}/store/${result.store.id}`);
   }, [navigate]);
 
   const handleLocationRequest = useCallback(async () => {
@@ -234,7 +238,7 @@ export const SearchPage: React.FC = () => {
                 </p>
                 <div className="space-y-3">
                   <button 
-                    onClick={() => navigate('/owner/auth')}
+                    onClick={() => navigate('/owner/auth?mode=login')}
                     className="w-full bg-gray-800 text-white py-3 px-4 rounded-xl font-medium hover:bg-gray-900 transition-colors"
                   >
                     Store Owner Login
@@ -249,8 +253,27 @@ export const SearchPage: React.FC = () => {
                     </svg>
                     Admin Panel
                   </button>
+                  <button 
+                    onClick={() => setShowRequestForm(true)}
+                    className="w-full bg-blue-600 text-white py-3 px-4 rounded-xl font-medium hover:bg-blue-700 transition-colors flex items-center justify-center"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    Request New Store/Item
+                  </button>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Request Form - Hidden during search */}
+          {!searchInput.trim() && showRequestForm && (
+            <div className="px-4 mb-6">
+              <RequestNewStoreItem
+                onSuccess={() => setShowRequestForm(false)}
+                onCancel={() => setShowRequestForm(false)}
+              />
             </div>
           )}
 

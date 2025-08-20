@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import PWAInstallPrompt from './components/PWAInstallPrompt';
-import PWAStatus from './components/PWAStatus';
 import LoadingScreen from './components/LoadingScreen';
 import { SearchPage } from './pages/SearchPage';
 import { ItemDetailsPage } from './pages/ItemDetailsPage';
@@ -103,10 +101,6 @@ function App() {
             } 
           />
         </Routes>
-        
-        {/* PWA Components */}
-        <PWAInstallPrompt />
-        <PWAStatus />
       </Router>
     </AuthProvider>
   );

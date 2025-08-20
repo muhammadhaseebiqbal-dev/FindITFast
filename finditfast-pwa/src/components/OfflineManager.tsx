@@ -69,7 +69,7 @@ const OfflineManager: React.FC<OfflineManagerProps> = ({ children }) => {
         lastSync: new Date(),
       }));
       
-      console.log('Offline data synced successfully');
+      // Data synced successfully
     } catch (error) {
       console.error('Failed to sync offline data:', error);
     }

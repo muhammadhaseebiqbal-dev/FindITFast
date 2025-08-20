@@ -18,6 +18,21 @@ export const ItemPin: React.FC<ItemPinProps> = ({
   allowInteraction = true
 }) => {
   const { canEditStoreItems } = usePermissions();
+  
+  console.log('📍 ItemPin render attempt:', {
+    itemId: item.id,
+    itemName: item.name,
+    position: item.position,
+    isSelected,
+    hasPosition: !!(item.position?.x !== undefined && item.position?.y !== undefined)
+  });
+  
+  // Check if item has position data
+  if (!item.position || item.position.x === undefined || item.position.y === undefined) {
+    console.warn('⚠️ Item missing position data:', item.name, item.id, 'position:', item.position);
+    return null; // Don't render pin if no position data
+  }
+  
   // Calculate pin position as percentage of container dimensions
   const leftPercent = (item.position.x / 100) * 100;
   const topPercent = (item.position.y / 100) * 100;

@@ -228,7 +228,7 @@ export const ReportItemPage: React.FC = () => {
         <MobileContent>
           <div className="flex justify-center items-center h-64">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
               <p className="mt-4 text-gray-600">Loading item details...</p>
             </div>
           </div>
@@ -283,7 +283,7 @@ export const ReportItemPage: React.FC = () => {
               <div className="flex justify-center space-x-4">
                 <button
                   onClick={capturePhoto}
-                  className="bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-dark transition-colors"
+                  className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
                 >
                   📸 Capture Photo
                 </button>
@@ -391,7 +391,7 @@ export const ReportItemPage: React.FC = () => {
               onChange={(e) => setReportData(prev => ({ ...prev, comments: e.target.value }))}
               placeholder="Any additional details about the missing item..."
               rows={4}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
             />
           </div>
 
@@ -407,7 +407,7 @@ export const ReportItemPage: React.FC = () => {
             <button
               onClick={handleSubmit}
               disabled={submitting || !reportData.itemImage || !reportData.locationImage}
-              className="w-full bg-primary text-white px-6 py-4 rounded-lg font-medium hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-blue-600 text-white px-6 py-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? (
                 <span className="flex items-center justify-center">

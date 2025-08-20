@@ -36,10 +36,10 @@ const mockUser: User = {
 
 const mockOwnerProfile: StoreOwner = {
   id: 'owner123',
+  firebaseUid: 'user123',
   name: 'John Doe',
   email: 'owner@example.com',
   phone: '+1234567890',
-  storeName: 'Test Store',
   storeId: 'store123',
   createdAt: new Date() as any,
 };

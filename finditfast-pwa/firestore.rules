@@ -175,7 +175,11 @@ service cloud.firestore {
 
     // Store requests collection
     match /storeRequests/{requestId} {
-      // Store owners can read their own requests, admins can read all
+      // Public read access for all store requests (filtering for approved status done in app logic)
+      // This allows both search functionality and individual item details to work
+      allow read: if true;
+      
+      // Store owners can read their own requests, admins can read all (redundant but kept for clarity)
       allow read: if isAuthenticated() && 
                      (resource.data.requestedBy == request.auth.uid || isAdmin());
       
@@ -229,6 +233,21 @@ service cloud.firestore {
       
       // Admins can delete their own data
       allow delete: if isAuthenticated() && request.auth.uid == adminId;
+    }
+
+    // User Requests collection - for customer requests for new stores/items
+    match /userRequests/{requestId} {
+      // Anyone can create a request (both authenticated and anonymous users)
+      allow create: if true;
+      
+      // Any authenticated user can read requests (so store owners can see them)
+      allow read: if isAuthenticated();
+      
+      // Any authenticated user can update requests (to change status)
+      allow update: if isAuthenticated();
+      
+      // Only admins can delete requests
+      allow delete: if isAdmin();
     }
   }
 }

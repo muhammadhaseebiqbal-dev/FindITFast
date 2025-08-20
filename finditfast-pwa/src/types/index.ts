@@ -73,7 +73,7 @@ export interface Report {
   itemId: string;
   storeId: string;
   userId?: string;
-  type: 'missing' | 'moved' | 'found';
+  type: 'missing' | 'moved' | 'found' | 'confirm';
   timestamp: Timestamp;
   status?: 'pending' | 'resolved' | 'dismissed';
   location?: {
@@ -116,6 +116,33 @@ export interface StoreRequest {
     url: string;
     size: number;
   }>;
+}
+
+export interface UserRequest {
+  id: string;
+  requestType: 'new_store' | 'new_item';
+  userId?: string; // Optional for anonymous requests
+  userEmail?: string;
+  title: string;
+  description: string;
+  location?: {
+    latitude: number;
+    longitude: number;
+  };
+  address?: string;
+  storeName?: string; // For new store requests
+  itemName?: string; // For new item requests
+  storeId?: string; // For new item requests - which store to add to
+  category?: string;
+  requestedAt: Date;
+  status: 'pending' | 'reviewed' | 'implemented' | 'rejected';
+  reviewedAt?: Date;
+  reviewedBy?: string;
+  priority: 'low' | 'medium' | 'high';
+  metadata?: {
+    images?: string[]; // Base64 encoded images
+    additionalInfo?: Record<string, any>;
+  };
 }
 
 // Re-export permission types

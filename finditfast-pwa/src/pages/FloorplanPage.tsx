@@ -14,6 +14,8 @@ export const FloorplanPage: React.FC = () => {
   const { isLandscape } = useOrientation();
   const { isMobile } = useViewport();
   
+  console.log('🏪 FloorplanPage: Component rendered with storeId:', storeId);
+  
   const [store, setStore] = useState<Store | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [selectedItemId, setSelectedItemId] = useState<string | undefined>();
@@ -22,6 +24,8 @@ export const FloorplanPage: React.FC = () => {
 
   // Get the item ID from URL params if provided
   const itemIdFromUrl = searchParams.get('itemId');
+  
+  console.log('🔗 FloorplanPage: URL params:', { storeId, itemIdFromUrl });
 
   useEffect(() => {
     const loadStoreAndItems = async () => {
@@ -45,6 +49,16 @@ export const FloorplanPage: React.FC = () => {
 
         // Load items for this store
         const storeItems = await firestoreService.getStoreItems(storeId);
+        console.log('🗂️ FloorplanPage: Loaded store items:', {
+          storeId,
+          itemsCount: storeItems.length,
+          items: storeItems.map(item => ({
+            id: item.id,
+            name: item.name,
+            storeId: item.storeId,
+            position: item.position
+          }))
+        });
         setItems(storeItems);
 
         // Set selected item if provided in URL
@@ -172,13 +186,23 @@ export const FloorplanPage: React.FC = () => {
           onDoubleTap={() => setSelectedItemId(undefined)}
           className="h-full"
         >
-          <FloorplanViewer
-            store={store}
-            items={items}
-            selectedItemId={selectedItemId}
-            onItemSelect={handleItemSelect}
-            className="rounded-2xl overflow-hidden shadow-lg"
-          />
+          {(() => {
+            console.log('🎯 FloorplanPage: About to render FloorplanViewer with:', {
+              store: store ? { id: store.id, name: store.name, floorplanUrl: store.floorplanUrl } : null,
+              itemsCount: items.length,
+              selectedItemId,
+              itemIdFromUrl
+            });
+            return (
+              <FloorplanViewer
+                store={store}
+                items={items}
+                selectedItemId={selectedItemId}
+                onItemSelect={handleItemSelect}
+                className="rounded-2xl overflow-hidden shadow-lg"
+              />
+            );
+          })()}
         </GestureHandler>
 
         {/* Mobile-optimized Help Text */}

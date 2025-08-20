@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { OwnerAuth } from '../components/auth/OwnerAuth';
 import { AuthService, type AuthError } from '../services/authService';
 
 export const OwnerAuthPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  
+  // Get initial mode from URL parameter
+  const mode = searchParams.get('mode');
+  const initialMode = mode === 'login' ? 'login' : 'register';
 
   useEffect(() => {
     const unsubscribe = AuthService.onAuthStateChange((user) => {
@@ -49,6 +54,7 @@ export const OwnerAuthPage: React.FC = () => {
       <OwnerAuth
         onAuthSuccess={handleAuthSuccess}
         onAuthError={handleAuthError}
+        initialMode={initialMode}
       />
     </div>
   );

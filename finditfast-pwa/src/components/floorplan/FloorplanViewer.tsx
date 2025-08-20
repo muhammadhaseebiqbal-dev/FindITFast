@@ -41,8 +41,49 @@ export const FloorplanViewer: React.FC<FloorplanViewerProps> = ({
     onItemSelect?.(item);
   };
 
-  // Filter items that belong to this store
-  const storeItems = items.filter(item => item.storeId === store.id);
+  // Filter items that belong to this store (handle prefix mismatches)
+  const storeItems = items.filter(item => {
+    if (!item.storeId) return false;
+    
+    // Direct match
+    if (item.storeId === store.id) return true;
+    
+    // Handle prefix mismatches - remove common prefixes and compare
+    const cleanedItemStoreId = item.storeId.replace(/^(temp_|virtual_)/, '');
+    const cleanedStoreId = store.id.replace(/^(temp_|virtual_)/, '');
+    
+    return cleanedItemStoreId === cleanedStoreId;
+  });
+
+  console.log('🗺️ FloorplanViewer Debug:', {
+    storeId: store.id,
+    totalItems: items.length,
+    filteredStoreItems: storeItems.length,
+    selectedItemId,
+    itemsWithStoreIds: items.map(item => ({ 
+      id: item.id, 
+      name: item.name, 
+      storeId: item.storeId,
+      position: item.position,
+      hasPosition: !!(item.position?.x !== undefined && item.position?.y !== undefined)
+    })),
+    storeItemsWithPositions: storeItems.map(item => ({
+      id: item.id,
+      name: item.name,
+      position: item.position,
+      isSelected: item.id === selectedItemId,
+      hasValidPosition: !!(item.position?.x !== undefined && item.position?.y !== undefined)
+    }))
+  });
+
+  // Additional debugging for rendering conditions
+  console.log('🎯 Rendering conditions check:', {
+    isImageLoaded,
+    imageError,
+    storeItemsLength: storeItems.length,
+    storeItemsWithValidPositions: storeItems.filter(item => item.position?.x !== undefined && item.position?.y !== undefined).length,
+    shouldRenderPins: isImageLoaded && !imageError && storeItems.length > 0
+  });
 
   if (!store.floorplanUrl) {
     return (
@@ -78,26 +119,51 @@ export const FloorplanViewer: React.FC<FloorplanViewerProps> = ({
         />
 
         {/* Item Pins Overlay */}
-        {isImageLoaded && !imageError && storeItems.length > 0 && (
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="relative w-full h-full pointer-events-auto">
-              {storeItems.map((item) => (
-                <ItemPin
-                  key={item.id}
-                  item={item}
-                  onClick={handleItemClick}
-                  isSelected={item.id === selectedItemId}
-                  allowInteraction={canEditStoreItems(store.id) || isUser}
-                />
-              ))}
+        {isImageLoaded && !imageError && storeItems.length > 0 && (() => {
+          console.log('🎯 About to render', storeItems.length, 'ItemPin components');
+          return (
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="relative w-full h-full pointer-events-auto">
+                {storeItems.map((item) => {
+                  console.log('🔄 Rendering ItemPin for:', item.name, 'with position:', item.position);
+                  return (
+                    <ItemPin
+                      key={item.id}
+                      item={item}
+                      onClick={handleItemClick}
+                      isSelected={item.id === selectedItemId}
+                      allowInteraction={canEditStoreItems(store.id) || isUser}
+                    />
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Items Count Badge */}
         {isImageLoaded && !imageError && storeItems.length > 0 && (
           <div className="absolute top-4 left-4 bg-blue-600 text-white text-sm font-medium px-3 py-1 rounded-full shadow-lg">
-            {storeItems.length} item{storeItems.length !== 1 ? 's' : ''} located
+            {storeItems.filter(item => item.position?.x !== undefined && item.position?.y !== undefined).length} of {storeItems.length} item{storeItems.length !== 1 ? 's' : ''} located
+          </div>
+        )}
+
+        {/* Items Found But Not Positioned Message */}
+        {isImageLoaded && !imageError && storeItems.length > 0 && 
+         storeItems.filter(item => item.position?.x !== undefined && item.position?.y !== undefined).length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="bg-white bg-opacity-90 rounded-lg p-6 text-center shadow-lg max-w-sm">
+              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-amber-100 flex items-center justify-center">
+                <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <p className="text-gray-700 font-medium">Items need positioning</p>
+              <p className="text-sm text-gray-500 mt-1">
+                {storeItems.length} item{storeItems.length !== 1 ? 's' : ''} found but not yet positioned on the floorplan
+              </p>
+              <p className="text-xs text-gray-400 mt-2">Store owners can add item locations</p>
+            </div>
           </div>
         )}
 

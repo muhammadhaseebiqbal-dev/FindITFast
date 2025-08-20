@@ -13,10 +13,10 @@ const mockUser: User = {
 
 const mockOwnerProfile: StoreOwner = {
   id: 'owner123',
+  firebaseUid: 'user123',
   name: 'John Doe',
   email: 'owner@example.com',
   phone: '+1234567890',
-  storeName: 'Test Store',
   storeId: 'store123',
   createdAt: new Date() as any,
 };
@@ -84,6 +84,7 @@ describe('Permission System Integration', () => {
           latitude: 40.7128,
           longitude: -74.0060,
         },
+        requestedBy: 'user123',
       };
 
       const errors = StoreRequestService.validateStoreRequestData(validData);
@@ -94,6 +95,7 @@ describe('Permission System Integration', () => {
       const invalidData = {
         storeName: '',
         address: '123',
+        requestedBy: 'user123',
       };
 
       const errors = StoreRequestService.validateStoreRequestData(invalidData);
@@ -106,6 +108,7 @@ describe('Permission System Integration', () => {
       const minimalData = {
         storeName: 'Minimal Store',
         address: '123 Main Street, City, State',
+        requestedBy: 'user123',
       };
 
       const errors = StoreRequestService.validateStoreRequestData(minimalData);

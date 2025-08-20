@@ -26,7 +26,6 @@ const PWAInstallPrompt: React.FC = () => {
 
     // Listen for the beforeinstallprompt event
     const handleBeforeInstallPrompt = (e: Event) => {
-      console.log('beforeinstallprompt event fired');
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       setShowInstallPrompt(true);
@@ -34,7 +33,6 @@ const PWAInstallPrompt: React.FC = () => {
 
     // Listen for app installed event
     const handleAppInstalled = () => {
-      console.log('App installed event fired');
       setIsInstalled(true);
       setShowInstallPrompt(false);
       setDeferredPrompt(null);
@@ -46,7 +44,6 @@ const PWAInstallPrompt: React.FC = () => {
     // For development/testing - show install prompt after a delay if not already installed
     const timer = setTimeout(() => {
       if (!isStandalone && !isInWebAppiOS && !deferredPrompt) {
-        console.log('No beforeinstallprompt event detected - showing manual install info');
         setShowInstallPrompt(true);
       }
     }, 3000);
@@ -65,9 +62,9 @@ const PWAInstallPrompt: React.FC = () => {
         const { outcome } = await deferredPrompt.userChoice;
         
         if (outcome === 'accepted') {
-          console.log('User accepted the install prompt');
+          // User accepted
         } else {
-          console.log('User dismissed the install prompt');
+          // User dismissed
         }
         
         setDeferredPrompt(null);

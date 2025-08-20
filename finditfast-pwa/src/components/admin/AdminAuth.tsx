@@ -20,7 +20,6 @@ export const AdminAuth: React.FC = () => {
       
       // Check if this is actually an admin (you could check against admins collection)
       if (email === 'admin@finditfast.com') {
-        console.log('Admin logged in:', userCredential.user.uid);
         navigate('/admin');
       } else {
         setError('This login is for app administrators only.');
@@ -37,6 +36,20 @@ export const AdminAuth: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full bg-white rounded-xl shadow-sm p-8">
+        {/* Go to Home Button */}
+        <div className="flex justify-end mb-4">
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="flex items-center text-gray-600 hover:text-gray-800 text-sm font-medium transition-colors"
+          >
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            Go to Home
+          </button>
+        </div>
+        
         <div className="text-center mb-8">
           <div className="mx-auto h-16 w-16 flex items-center justify-center rounded-full bg-gray-800 mb-4">
             <svg className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -122,23 +135,14 @@ export const AdminAuth: React.FC = () => {
             )}
           </button>
 
-          <div className="text-center space-y-3">
+          <div className="text-center">
             <button
               type="button"
-              onClick={() => navigate('/owner/auth')}
+              onClick={() => navigate('/owner/auth?mode=login')}
               className="text-gray-600 hover:text-gray-800 text-sm font-medium transition-colors"
             >
               Store owner? Login here instead
             </button>
-            <div>
-              <button
-                type="button"
-                onClick={() => navigate('/')}
-                className="text-gray-500 hover:text-gray-700 text-sm transition-colors"
-              >
-                Back to search
-              </button>
-            </div>
           </div>
         </form>
       </div>

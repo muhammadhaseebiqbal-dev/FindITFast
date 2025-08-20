@@ -626,14 +626,6 @@ export const OwnerStoreManager: React.FC = () => {
                     </div>
                   </div>
                   
-                  <div className="flex space-x-2 ml-4">
-                    <button
-                      onClick={() => window.open(`/owner/dashboard`, '_blank')}
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                    >
-                      🔧 Manage Store
-                    </button>
-                  </div>
                 </div>
               </div>
             ))}

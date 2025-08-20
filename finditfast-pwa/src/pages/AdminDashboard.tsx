@@ -69,8 +69,55 @@ export const AdminDashboard: React.FC = () => {
   const [passwordUpdateLoading, setPasswordUpdateLoading] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<{ type: 'email' | 'password', success: boolean, message: string } | null>(null);
   
+  // Analytics types
+  interface StoreGrowthData {
+    month: string;
+    approved: number;
+    pending: number;
+    rejected: number;
+    total: number;
+  }
+
+  interface RequestTrendData {
+    name: string;
+    value: number;
+    color: string;
+  }
+
+  interface StoreDistributionData {
+    location: string;
+    count: number;
+  }
+
+  interface UserActivityData {
+    owner: string;
+    stores: number;
+  }
+
+  interface PopularStoreData {
+    storeName: string;
+    items: number;
+    views: number;
+  }
+
+  interface TimeMetrics {
+    avgApprovalTime: number;
+    avgResponseTime: number;
+    totalSearches: number;
+    activeUsers: number;
+  }
+
+  interface AnalyticsData {
+    storeGrowth: StoreGrowthData[];
+    requestTrends: RequestTrendData[];
+    storeDistribution: StoreDistributionData[];
+    userActivity: UserActivityData[];
+    popularStores: PopularStoreData[];
+    timeMetrics: TimeMetrics;
+  }
+
   // Analytics state
-  const [analyticsData, setAnalyticsData] = useState({
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData>({
     storeGrowth: [],
     requestTrends: [],
     storeDistribution: [],
@@ -95,25 +142,38 @@ export const AdminDashboard: React.FC = () => {
       // Get all store requests for trends
       const requestsQuery = query(collection(db, 'storeRequests'));
       const requestsSnapshot = await getDocs(requestsQuery);
-      const allRequests = requestsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        submittedAt: doc.data().submittedAt?.toDate() || new Date(),
-        approvedAt: doc.data().approvedAt?.toDate() || null,
-        rejectedAt: doc.data().rejectedAt?.toDate() || null
-      }));
+      const allRequests = requestsSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          submittedAt: data.submittedAt?.toDate() || new Date(),
+          approvedAt: data.approvedAt?.toDate() || null,
+          rejectedAt: data.rejectedAt?.toDate() || null,
+          status: data.status || 'pending',
+          storeAddress: data.address || data.storeAddress || '',
+          storeName: data.storeName || '',
+          ownerEmail: data.ownerEmail || '',
+          requestedBy: data.requestedBy || data.ownerEmail || ''
+        };
+      });
 
       // Get all items from approved stores
       const itemsQuery = query(collection(db, 'items'));
       const itemsSnapshot = await getDocs(itemsQuery);
-      const allItems = itemsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate() || new Date()
-      }));
+      const allItems = itemsSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt?.toDate() || new Date(),
+          storeId: data.storeId || data.store || '',
+          store: data.store || data.storeId || ''
+        };
+      });
 
       // Get search logs if they exist (you might need to create this collection)
-      let searchLogs = [];
+      let searchLogs: any[] = [];
       try {
         const searchQuery = query(collection(db, 'searchLogs'));
         const searchSnapshot = await getDocs(searchQuery);
@@ -127,7 +187,7 @@ export const AdminDashboard: React.FC = () => {
       }
 
       // Get user activity logs if they exist
-      let userLogs = [];
+      let userLogs: any[] = [];
       try {
         const userQuery = query(collection(db, 'userActivity'));
         const userSnapshot = await getDocs(userQuery);
@@ -173,35 +233,35 @@ export const AdminDashboard: React.FC = () => {
       ];
       
       // Calculate store distribution by location (top 10) - using actual addresses
-      const locationCounts = {};
+      const locationCounts: Record<string, number> = {};
       allRequests.filter(req => req.status === 'approved').forEach(req => {
         const fullAddress = req.storeAddress || 'Unknown Location';
         // Extract city/area from address (assuming format: "Street, City, State/Country")
-        const addressParts = fullAddress.split(',').map(part => part.trim());
+        const addressParts = fullAddress.split(',').map((part: string) => part.trim());
         const location = addressParts.length >= 2 ? addressParts[addressParts.length - 2] : addressParts[0] || 'Unknown';
         locationCounts[location] = (locationCounts[location] || 0) + 1;
       });
       
       const storeDistribution = Object.entries(locationCounts)
-        .sort(([,a], [,b]) => b - a)
+        .sort(([,a], [,b]) => (b as number) - (a as number))
         .slice(0, 10)
-        .map(([location, count]) => ({ location, count }));
+        .map(([location, count]) => ({ location, count: count as number }));
       
       // Calculate user activity (stores per owner) - using actual owners
-      const ownerCounts = {};
+      const ownerCounts: Record<string, number> = {};
       allRequests.filter(req => req.status === 'approved').forEach(req => {
         const owner = req.ownerEmail || req.requestedBy || 'Unknown';
         ownerCounts[owner] = (ownerCounts[owner] || 0) + 1;
       });
       
       const userActivity = Object.entries(ownerCounts)
-        .sort(([,a], [,b]) => b - a)
+        .sort(([,a], [,b]) => (b as number) - (a as number))
         .slice(0, 8)
-        .map(([owner, stores]) => ({ owner, stores }));
+        .map(([owner, stores]) => ({ owner, stores: stores as number }));
       
       // Calculate popular stores using actual item counts per store
       const approvedStores = allRequests.filter(req => req.status === 'approved');
-      const storeItemCounts = {};
+      const storeItemCounts: Record<string, number> = {};
       
       // Count items per store
       allItems.forEach(item => {
@@ -210,7 +270,7 @@ export const AdminDashboard: React.FC = () => {
       });
 
       // Count searches per store (if search logs available)
-      const storeSearchCounts = {};
+      const storeSearchCounts: Record<string, number> = {};
       searchLogs.forEach(search => {
         const storeId = search.storeId || search.store || 'unknown';
         storeSearchCounts[storeId] = (storeSearchCounts[storeId] || 0) + 1;
@@ -223,10 +283,9 @@ export const AdminDashboard: React.FC = () => {
           const searchCount = storeSearchCounts[storeKey] || storeSearchCounts[store.storeName] || 0;
           
           return {
-            name: store.storeName,
+            storeName: store.storeName,
             items: itemCount,
-            searches: searchCount,
-            lastActive: store.approvedAt || store.submittedAt || new Date()
+            views: searchCount,
           };
         })
         .sort((a, b) => b.items - a.items)
@@ -2126,15 +2185,15 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                   ) : analyticsData.popularStores.length > 0 ? (
                     <div className="space-y-3 h-48 overflow-y-auto custom-scrollbar pr-2">
-                      {analyticsData.popularStores.map((store: {name: string, items: number, searches: number, lastActive: Date}, index) => (
+                      {analyticsData.popularStores.map((store, index) => (
                         <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 rounded-lg px-2 transition-all duration-200">
                           <div className="flex items-center space-x-3">
                             <div className="w-9 h-9 bg-gradient-to-br from-green-500 to-teal-600 rounded-full flex items-center justify-center text-white text-sm font-medium shadow-sm">
-                              {store.name.charAt(0).toUpperCase()}
+                              {store.storeName.charAt(0).toUpperCase()}
                             </div>
                             <div>
                               <div className="text-sm font-medium text-gray-900 truncate max-w-32">
-                                {store.name}
+                                {store.storeName}
                               </div>
                               <div className="text-xs text-gray-500 flex items-center space-x-2">
                                 <span className="flex items-center">
@@ -2147,13 +2206,13 @@ export const AdminDashboard: React.FC = () => {
                                   <svg className="w-3 h-3 mr-1 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                                   </svg>
-                                  {store.searches}
+                                  {store.views}
                                 </span>
                               </div>
                             </div>
                           </div>
                           <div className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-md">
-                            {store.lastActive.toLocaleDateString('en-US', {month: 'short', day: 'numeric'})}
+                            Recent
                           </div>
                         </div>
                       ))}

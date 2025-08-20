@@ -98,46 +98,109 @@ export class FirestoreService {
 
 // Specific service methods for each collection
 export const StoreService = {
-  getAll: () => FirestoreService.getCollection<Store>('stores'),
-  getById: (id: string) => FirestoreService.getDocument<Store>('stores', id),
+  getAll: () => FirestoreService.getCollection<Store>('storeRequests', [where('status', '==', 'approved')]),
+  getById: (id: string) => FirestoreService.getDocument<Store>('storeRequests', id),
   getByOwner: (ownerId: string) =>
-    FirestoreService.getCollection<Store>('stores', [where('ownerId', '==', ownerId)]),
+    FirestoreService.getCollection<Store>('storeRequests', [where('ownerId', '==', ownerId), where('status', '==', 'approved')]),
   getNearby: (_latitude: number, _longitude: number, _radiusKm: number = 50) => {
     // Note: For production, consider using GeoFirestore for more accurate geospatial queries
-    // This is a simplified implementation
-    return FirestoreService.getCollection<Store>('stores');
+    // This is a simplified implementation that gets approved stores
+    return FirestoreService.getCollection<Store>('storeRequests', [where('status', '==', 'approved')]);
   },
-  create: (store: Omit<Store, 'id'>) => FirestoreService.addDocument<Store>('stores', store),
+  create: (store: Omit<Store, 'id'>) => FirestoreService.addDocument<Store>('storeRequests', store),
   update: async (id: string, data: Partial<Store>) => {
     // Handle temporary store IDs that may not exist yet
     if (id.startsWith('temp_')) {
       try {
-        const docRef = doc(db, 'stores', id);
+        const docRef = doc(db, 'storeRequests', id);
         await setDoc(docRef, data, { merge: true });
       } catch (error) {
         console.error(`Error creating/updating temp store document:`, error);
         throw error;
       }
     } else {
-      return FirestoreService.updateDocument('stores', id, data);
+      return FirestoreService.updateDocument('storeRequests', id, data);
     }
   },
-  delete: (id: string) => FirestoreService.deleteDocument('stores', id),
+  delete: (id: string) => FirestoreService.deleteDocument('storeRequests', id),
 };
 
 export const ItemService = {
   getAll: () => FirestoreService.getCollection<Item>('items'),
   getById: (id: string) => FirestoreService.getDocument<Item>('items', id),
-  getByStore: (storeId: string) => 
-    FirestoreService.getCollection<Item>('items', [where('storeId', '==', storeId)]),
-  search: (searchTerm: string) =>
-    FirestoreService.getCollection<Item>('items', [
-      where('name', '>=', searchTerm.toLowerCase()),
-      where('name', '<=', searchTerm.toLowerCase() + '\uf8ff'),
-      orderBy('name'),
-      orderBy('verified', 'desc'),
-      limit(20)
-    ]),
+  getByStore: async (storeId: string) => {
+    // Try to get items with the exact storeId first
+    let items = await FirestoreService.getCollection<Item>('items', [where('storeId', '==', storeId)]);
+    
+    // If no items found, try with common prefixes (temp_, virtual_)
+    if (items.length === 0) {
+      const prefixedIds = [`temp_${storeId}`, `virtual_${storeId}`];
+      
+      for (const prefixedId of prefixedIds) {
+        const prefixedItems = await FirestoreService.getCollection<Item>('items', [where('storeId', '==', prefixedId)]);
+        
+        if (prefixedItems.length > 0) {
+          items = prefixedItems;
+          break;
+        }
+      }
+    }
+    
+    // Also try searching for items that reference this store with cleaned storeId
+    if (items.length === 0) {
+      // Handle cases where items have storeId with prefix but we're searching with clean ID
+      const allItems = await FirestoreService.getCollection<Item>('items');
+      const matchingItems = allItems.filter(item => {
+        if (!item.storeId) return false;
+        
+        // Remove common prefixes from item's storeId and compare
+        const cleanedStoreId = item.storeId.replace(/^(temp_|virtual_)/, '');
+        return cleanedStoreId === storeId;
+      });
+      
+      if (matchingItems.length > 0) {
+        items = matchingItems;
+      }
+    }
+    
+    return items;
+  },
+  search: async (searchTerm: string) => {
+    // Get all items for fuzzy search (Firestore doesn't support full-text search)
+    const allItems = await FirestoreService.getCollection<Item>('items');
+    const searchLower = searchTerm.toLowerCase().trim();
+    
+    // Filter items that contain the search term in name or description
+    const matchingItems = allItems.filter(item => {
+      const nameMatch = item.name?.toLowerCase().includes(searchLower);
+      const descMatch = item.description?.toLowerCase().includes(searchLower);
+      const categoryMatch = item.category?.toLowerCase().includes(searchLower);
+      return nameMatch || descMatch || categoryMatch;
+    });
+
+    // Sort by relevance: exact matches first, then verified items, then by name
+    return matchingItems.sort((a, b) => {
+      const aNameExact = a.name?.toLowerCase() === searchLower;
+      const bNameExact = b.name?.toLowerCase() === searchLower;
+      const aNameStart = a.name?.toLowerCase().startsWith(searchLower);
+      const bNameStart = b.name?.toLowerCase().startsWith(searchLower);
+      
+      // Exact name match gets highest priority
+      if (aNameExact && !bNameExact) return -1;
+      if (!aNameExact && bNameExact) return 1;
+      
+      // Name starts with search term gets second priority
+      if (aNameStart && !bNameStart) return -1;
+      if (!aNameStart && bNameStart) return 1;
+      
+      // Verified items get third priority
+      if (a.verified && !b.verified) return -1;
+      if (!a.verified && b.verified) return 1;
+      
+      // Finally sort alphabetically
+      return (a.name || '').localeCompare(b.name || '');
+    }).slice(0, 20); // Limit to 20 results
+  },
   searchVerified: (searchTerm: string) =>
     FirestoreService.getCollection<Item>('items', [
       where('name', '>=', searchTerm.toLowerCase()),
@@ -201,30 +264,80 @@ export const ReportService = {
     ]);
   },
   getByStoreOwner: async (ownerId: string) => {
-    // First get all stores owned by this owner
-    const stores = await StoreService.getByOwner(ownerId);
-    const storeIds = stores.map(store => store.id);
-    
-    if (storeIds.length === 0) return [];
-    
-    // Get reports for all stores owned by this owner
-    const allReports = await Promise.all(
-      storeIds.map(storeId => 
-        FirestoreService.getCollection<Report>('reports', [
+    try {
+      // Get all approved stores for this owner
+      // Try multiple fields since owner identification varies
+      const storeQueries = [
+        // Try with ownerId field (direct owner ID)
+        FirestoreService.getCollection<Store>('storeRequests', [
+          where('ownerId', '==', ownerId), 
+          where('status', '==', 'approved')
+        ]),
+        // Try with requestedBy field (Firebase UID)
+        FirestoreService.getCollection<Store>('storeRequests', [
+          where('requestedBy', '==', ownerId), 
+          where('status', '==', 'approved')
+        ])
+      ];
+      
+      // Execute all queries in parallel
+      const storeResults = await Promise.all(storeQueries);
+      
+      // Combine and deduplicate stores
+      const allStores = storeResults.flat();
+      const uniqueStores = allStores.filter((store, index, arr) => 
+        arr.findIndex(s => s.id === store.id) === index
+      );
+      
+      if (uniqueStores.length === 0) {
+        return [];
+      }
+      
+      const storeIds = uniqueStores.map(store => store.id);
+      
+      // Get reports for all stores - handle both exact and prefixed store IDs
+      const allReports: Report[] = [];
+      
+      for (const storeId of storeIds) {
+        // Try exact store ID first
+        let reports = await FirestoreService.getCollection<Report>('reports', [
           where('storeId', '==', storeId),
           orderBy('timestamp', 'desc')
-        ])
-      )
-    );
-    
-    // Flatten and sort all reports
-    return allReports
-      .flat()
-      .sort((a, b) => {
+        ]);
+        
+        // If no reports found, try with prefixes
+        if (reports.length === 0) {
+          const prefixedIds = [`temp_${storeId}`, `virtual_${storeId}`];
+          
+          for (const prefixedId of prefixedIds) {
+            const prefixedReports = await FirestoreService.getCollection<Report>('reports', [
+              where('storeId', '==', prefixedId),
+              orderBy('timestamp', 'desc')
+            ]);
+            
+            if (prefixedReports.length > 0) {
+              reports = prefixedReports;
+              break;
+            }
+          }
+        }
+        
+        allReports.push(...reports);
+      }
+      
+      // Sort all reports by timestamp
+      const sortedReports = allReports.sort((a, b) => {
         const timeA = a.timestamp?.toDate?.()?.getTime() || 0;
         const timeB = b.timestamp?.toDate?.()?.getTime() || 0;
         return timeB - timeA;
       });
+      
+      return sortedReports;
+      
+    } catch (error) {
+      console.error('❌ Error getting reports for store owner:', error);
+      return [];
+    }
   },
   updateStatus: (id: string, status: 'pending' | 'resolved' | 'dismissed') =>
     FirestoreService.updateDocument('reports', id, { status }),
@@ -236,22 +349,65 @@ export const ReportService = {
 export const StorePlanService = {
   getAll: () => FirestoreService.getCollection<StorePlan>('storePlans'),
   getById: (id: string) => FirestoreService.getDocument<StorePlan>('storePlans', id),
-  getByStore: (storeId: string) =>
-    FirestoreService.getCollection<StorePlan>('storePlans', [
+  getByStore: async (storeId: string) => {
+    // Try to get store plans with the exact storeId first
+    let plans = await FirestoreService.getCollection<StorePlan>('storePlans', [
       where('storeId', '==', storeId),
       orderBy('createdAt', 'desc')
-    ]),
+    ]);
+    
+    // If no plans found, try with common prefixes (temp_, virtual_)
+    if (plans.length === 0) {
+      const prefixedIds = [`temp_${storeId}`, `virtual_${storeId}`];
+      
+      for (const prefixedId of prefixedIds) {
+        const prefixedPlans = await FirestoreService.getCollection<StorePlan>('storePlans', [
+          where('storeId', '==', prefixedId),
+          orderBy('createdAt', 'desc')
+        ]);
+        
+        if (prefixedPlans.length > 0) {
+          plans = prefixedPlans;
+          break;
+        }
+      }
+    }
+    
+    return plans;
+  },
   getByOwner: (ownerId: string) =>
     FirestoreService.getCollection<StorePlan>('storePlans', [
       where('ownerId', '==', ownerId),
       orderBy('createdAt', 'desc')
     ]),
-  getActiveByStore: (storeId: string) =>
-    FirestoreService.getCollection<StorePlan>('storePlans', [
+  getActiveByStore: async (storeId: string) => {
+    // Try to get active store plans with the exact storeId first
+    let plans = await FirestoreService.getCollection<StorePlan>('storePlans', [
       where('storeId', '==', storeId),
       where('isActive', '==', true),
       limit(1)
-    ]),
+    ]);
+    
+    // If no plans found, try with common prefixes (temp_, virtual_)
+    if (plans.length === 0) {
+      const prefixedIds = [`temp_${storeId}`, `virtual_${storeId}`];
+      
+      for (const prefixedId of prefixedIds) {
+        const prefixedPlans = await FirestoreService.getCollection<StorePlan>('storePlans', [
+          where('storeId', '==', prefixedId),
+          where('isActive', '==', true),
+          limit(1)
+        ]);
+        
+        if (prefixedPlans.length > 0) {
+          plans = prefixedPlans;
+          break;
+        }
+      }
+    }
+    
+    return plans;
+  },
   create: async (storePlan: Omit<StorePlan, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
     const now = new Date();
     const docData = {

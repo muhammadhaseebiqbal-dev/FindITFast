@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { FloorplanManager, MultiStoreItemManager, OwnerStoreManager, EnhancedInventoryManager } from '../components/owner';
+import { FloorplanManager, OwnerStoreManager, EnhancedInventoryManager } from '../components/owner';
 import { ReportsList } from '../components/reports/ReportsList';
+import { UserRequestsList } from '../components/reports/UserRequestsList';
 import { StoreService, ItemService } from '../services/firestoreService';
-import { collection, query, where, getDocs, onSnapshot, addDoc, serverTimestamp, doc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, onSnapshot, addDoc, serverTimestamp, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { debugOwnerProfile, fixOwnerProfile } from '../utils/debugOwnerProfile';
+import { fixOwnerProfile } from '../utils/debugOwnerProfile';
 import type { Store, Item } from '../types';
 
 export const OwnerDashboard: React.FC = () => {
@@ -20,7 +21,7 @@ export const OwnerDashboard: React.FC = () => {
   const tabFromUrl = queryParams.get('tab');
   const [activeTab, setActiveTab] = useState(tabFromUrl || 'overview');
   const [store, setStore] = useState<Store | null>(null);
-  const [items, setItems] = useState<Item[]>([]);
+  // const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -44,9 +45,9 @@ export const OwnerDashboard: React.FC = () => {
   });
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
   const [allOwnerStores, setAllOwnerStores] = useState<any[]>([]);
-  const [storesLoading, setStoresLoading] = useState(false);
+  // const [storesLoading, setStoresLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ storeId: string; storeName: string } | null>(null);
-  const [editingStore, setEditingStore] = useState<any | null>(null);
+  // const [editingStore, setEditingStore] = useState<any | null>(null);
 
   // Sidebar navigation items
   const sidebarItems = [
@@ -225,6 +226,23 @@ export const OwnerDashboard: React.FC = () => {
 
     loadStoreRequests();
   }, [user?.uid]);
+
+  // Automatically fix owner profile if needed
+  useEffect(() => {
+    const autoFixOwnerProfile = async () => {
+      // Only run if user is logged in but no owner profile exists
+      if (user && !ownerProfile) {
+        try {
+          await fixOwnerProfile();
+          await refreshOwnerProfile();
+        } catch (error) {
+          console.error('Error auto-fixing owner profile:', error);
+        }
+      }
+    };
+
+    autoFixOwnerProfile();
+  }, [user, ownerProfile]);
 
   // Handle geolocation
   const handleGetCurrentLocation = async () => {
@@ -642,37 +660,37 @@ export const OwnerDashboard: React.FC = () => {
     }
   };
 
-  const handleUploadSuccess = (url: string) => {
-    setUploadSuccess('Floorplan uploaded successfully!');
-    if (store) {
-      setStore({ ...store, floorplanUrl: url });
-    }
-    setTimeout(() => setUploadSuccess(null), 5000);
-  };
+  // const handleUploadSuccess = (url: string) => {
+  //   setUploadSuccess('Floorplan uploaded successfully!');
+  //   if (store) {
+  //     setStore({ ...store, floorplanUrl: url });
+  //   }
+  //   setTimeout(() => setUploadSuccess(null), 5000);
+  // };
 
-  const handleUploadError = (error: string) => {
-    console.error('Upload error:', error);
-    setError(error);
-    setTimeout(() => setError(null), 5000);
-  };
+  // const handleUploadError = (error: string) => {
+  //   console.error('Upload error:', error);
+  //   setError(error);
+  //   setTimeout(() => setError(null), 5000);
+  // };
 
-  const handleItemAdded = (newItem: Item) => {
-    setItems(prev => [...prev, newItem]);
-    setUploadSuccess('Item added successfully!');
-    setTimeout(() => setUploadSuccess(null), 5000);
-  };
+  // const handleItemAdded = (newItem: Item) => {
+  //   setItems(prev => [...prev, newItem]);
+  //   setUploadSuccess('Item added successfully!');
+  //   setTimeout(() => setUploadSuccess(null), 5000);
+  // };
 
-  const handleError = (errorMessage: string) => {
-    setError(errorMessage);
-    setTimeout(() => setError(null), 5000);
-  };
+  // const handleError = (errorMessage: string) => {
+  //   setError(errorMessage);
+  //   setTimeout(() => setError(null), 5000);
+  // };
   
   // Handle editing a store
-  const handleEditStore = (store: any) => {
-    setEditingStore(store);
-    // If it's a request, go to requests tab, otherwise go to inventory tab
-    setActiveTab(store.type === 'request' ? 'requests' : 'inventory');
-  };
+  // const handleEditStore = (store: any) => {
+  //   setEditingStore(store);
+  //   // If it's a request, go to requests tab, otherwise go to inventory tab
+  //   setActiveTab(store.type === 'request' ? 'requests' : 'inventory');
+  // };
   
   // Handle deleting a store
   const handleDeleteStore = async (storeId: string, storeType: string) => {
@@ -846,69 +864,21 @@ export const OwnerDashboard: React.FC = () => {
                       </h2>
                       <p className="text-gray-600 mt-1">Manage your store and inventory</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm text-gray-500">Store Status</p>
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                        ownerProfile?.storeId ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {ownerProfile?.storeId ? 'Active' : 'Setup Required'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Debug Section - Temporary */}
-                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-                  <h3 className="text-sm font-medium text-yellow-800 mb-2">🔧 Debug Information</h3>
-                  <div className="space-y-2 text-xs">
-                    <div><strong>User:</strong> {user ? `${user.email} (${user.uid})` : 'Not authenticated'}</div>
-                    <div><strong>Owner Profile:</strong> {ownerProfile ? `Found: ${ownerProfile.id} (${ownerProfile.email})` : 'Not found'}</div>
-                    <div><strong>Store ID:</strong> {ownerProfile?.storeId || 'None'}</div>
-                    <button 
-                      onClick={async () => {
-                        await fixOwnerProfile();
-                        await refreshOwnerProfile();
-                      }}
-                      className="mt-2 px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 mr-2"
-                    >
-                      🔧 Fix Owner Profile
-                    </button>
-                    <button 
-                      onClick={refreshOwnerProfile}
-                      className="mt-2 px-3 py-1 bg-yellow-600 text-white text-xs rounded hover:bg-yellow-700 mr-2"
-                    >
-                      🔄 Refresh Owner Profile
-                    </button>
-                    <button 
-                      onClick={debugOwnerProfile}
-                      className="mt-2 px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
-                    >
-                      🔍 Debug Database
-                    </button>
+                    
                   </div>
                 </div>
 
               {/* Store Info Grid */}
               {ownerProfile && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="bg-white rounded-xl p-6 shadow-sm">
                     <h3 className="text-sm font-medium text-gray-500 mb-1">Owner Name</h3>
                     <p className="text-lg font-semibold text-gray-900">{ownerProfile.name}</p>
                   </div>
                   <div className="bg-white rounded-xl p-6 shadow-sm">
-                    <h3 className="text-sm font-medium text-gray-500 mb-1">Total Items</h3>
-                    <p className="text-lg font-semibold text-gray-900">{items.length}</p>
-                  </div>
-                  <div className="bg-white rounded-xl p-6 shadow-sm">
                     <h3 className="text-sm font-medium text-gray-500 mb-1">Owner ID</h3>
                     <p className="text-lg font-semibold text-gray-900 truncate overflow-hidden text-ellipsis" title={ownerProfile?.id || 'Not assigned'}>
                       {ownerProfile?.id || 'Not assigned'}
-                    </p>
-                  </div>
-                  <div className="bg-white rounded-xl p-6 shadow-sm">
-                    <h3 className="text-sm font-medium text-gray-500 mb-1">Floorplan</h3>
-                    <p className="text-lg font-semibold text-gray-900">
-                      {store?.floorplanUrl ? 'Uploaded' : 'Missing'}
                     </p>
                   </div>
                 </div>
@@ -1452,14 +1422,24 @@ export const OwnerDashboard: React.FC = () => {
           )}
 
           {activeTab === 'reports' && (
-            <div className="bg-white rounded-xl p-6 shadow-sm animate-fade-in">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Reports & Analytics</h2>
-              {ownerProfile?.id && (
-                <ReportsList storeOwnerId={ownerProfile.id} />
-              )}
-              {!ownerProfile?.id && (
-                <p className="text-gray-600">Loading reports...</p>
-              )}
+            <div className="space-y-6 animate-fade-in">
+              {/* Customer Reports */}
+              <div className="bg-white rounded-xl p-6 shadow-sm">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Customer Reports</h2>
+                {user?.uid ? (
+                  <ReportsList storeOwnerId={user.uid} />
+                ) : ownerProfile?.id ? (
+                  <ReportsList storeOwnerId={ownerProfile.id} />
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-gray-600">Loading owner profile...</p>
+                  </div>
+                )}
+              </div>
+
+              {/* User Requests */}
+              <UserRequestsList />
             </div>
           )}
           </div>

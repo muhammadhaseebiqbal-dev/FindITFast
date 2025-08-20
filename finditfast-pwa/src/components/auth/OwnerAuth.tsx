@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AuthService, type OwnerRegistrationData, type AuthError } from '../../services/authService';
 
 interface OwnerAuthProps {
   onAuthSuccess?: () => void;
   onAuthError?: (error: AuthError) => void;
+  initialMode?: 'login' | 'register';
 }
 
 interface FormData extends OwnerRegistrationData {
@@ -20,8 +22,9 @@ interface FormErrors {
   general?: string;
 }
 
-export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError }) => {
-  const [isLogin, setIsLogin] = useState(false);
+export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError, initialMode = 'register' }) => {
+  const navigate = useNavigate();
+  const [isLogin, setIsLogin] = useState(initialMode === 'login');
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     name: '',
@@ -125,6 +128,20 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
 
   return (
     <div className="max-w-md mx-auto bg-white rounded-xl shadow-sm p-6">
+      {/* Go to Home Button */}
+      <div className="flex justify-between items-center mb-4">
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          className="flex items-center text-gray-600 hover:text-gray-800 text-sm font-medium transition-colors"
+        >
+          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+          </svg>
+          Go to Home
+        </button>
+      </div>
+      
       <div className="text-center mb-6">
         <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
           <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">

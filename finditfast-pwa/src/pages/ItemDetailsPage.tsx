@@ -56,11 +56,24 @@ export const ItemDetailsPage: React.FC = () => {
   }, [itemId, storeId]);
 
   const handleDirections = () => {
-    if (!item?.store.address) return;
+    if (!item?.store) return;
     
-    const destination = encodeURIComponent(item.store.address);
-    const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
-    window.open(mapsUrl, '_blank');
+    // Use coordinates for more accurate navigation
+    if (item.store.location?.latitude && item.store.location?.longitude) {
+      const lat = item.store.location.latitude;
+      const lng = item.store.location.longitude;
+      const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+      console.log('🗺️ Opening directions to coordinates:', { lat, lng, storeName: item.store.name });
+      window.open(mapsUrl, '_blank');
+    } else if (item.store.address) {
+      // Fallback to address if coordinates are not available
+      const destination = encodeURIComponent(item.store.address);
+      const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
+      console.log('🗺️ Opening directions to address:', item.store.address);
+      window.open(mapsUrl, '_blank');
+    } else {
+      console.error('❌ No location data available for store:', item.store.name);
+    }
   };
 
   const handleArrivedAtStore = () => {

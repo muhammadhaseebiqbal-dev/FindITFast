@@ -15,60 +15,68 @@ export class SearchService {
       return [];
     }
 
-    console.log('🔍 SearchService.searchItems called with query:', query);
-
     try {
       // Search for items using the existing search method
-      console.log('📦 Calling ItemService.search with:', query.toLowerCase());
       const items = await ItemService.search(query.toLowerCase());
-      console.log('📦 ItemService.search returned:', items.length, 'items:', items);
       
-      // Get all stores to join with items
-      console.log('🏪 Calling StoreService.getAll');
-      const stores = await StoreService.getAll();
-      console.log('🏪 StoreService.getAll returned:', stores.length, 'stores:', stores);
-      const storeMap = new Map(stores.map(store => [store.id, store]));
+      // Get all approved stores from storeRequests and transform to Store format
+      const storeRequests = await StoreService.getAll();
+      
+      // Transform storeRequests to Store format and create lookup map
+      const storeMap = new Map();
+      storeRequests.forEach((storeRequest: any) => {
+        const store = {
+          id: storeRequest.id,
+          name: storeRequest.storeName || storeRequest.name || 'Store',
+          address: storeRequest.storeAddress || storeRequest.address || 'Address not available',
+          location: storeRequest.storeLocation || storeRequest.location || { latitude: 0, longitude: 0 },
+          ownerId: storeRequest.ownerId || 'unknown',
+          createdAt: storeRequest.createdAt,
+          updatedAt: storeRequest.updatedAt
+        };
+        storeMap.set(storeRequest.id, store);
+      });
 
       // Combine items with their store information
       const searchResults: SearchResult[] = items
         .map(item => {
-          console.log('🔄 Processing item:', item.id, 'for store:', item.storeId);
-          const store = storeMap.get(item.storeId);
+          // Handle virtual store IDs by removing the virtual_ prefix
+          let storeId = item.storeId;
+          if (storeId && storeId.startsWith('virtual_')) {
+            storeId = storeId.replace('virtual_', '');
+          }
+          
+          const store = storeMap.get(storeId);
           if (!store) {
-            console.log('❌ No store found for item:', item.id, 'storeId:', item.storeId);
             return null;
           }
 
-          console.log('✅ Store found for item:', item.id, 'store:', store.name);
-          const result: SearchResult = {
-            ...item,
-            store,
-            distance: userLocation ? this.calculateDistance(
+          let distance;
+          if (userLocation) {
+            distance = this.calculateDistance(
               userLocation.latitude,
               userLocation.longitude,
               store.location.latitude,
               store.location.longitude
-            ) : undefined
+            );
+          }
+          
+          const result: SearchResult = {
+            ...item,
+            store,
+            distance
           };
 
           return result;
         })
         .filter((result): result is SearchResult => result !== null);
 
-      console.log('🎯 Search results after processing:', searchResults.length, 'results');
-      
       // Rank and sort results
       const rankedResults = this.rankSearchResults(searchResults);
-      console.log('📊 Ranked results:', rankedResults.length, 'results');
 
       // Track search analytics
       try {
         // Temporarily disable analytics to debug search
-        console.log('Would track search:', {
-          searchQuery: query,
-          resultsCount: rankedResults.length,
-          location: userLocation
-        });
         // trackSearch({
         //   searchQuery: query,
         //   resultsCount: rankedResults.length,
@@ -90,40 +98,127 @@ export class SearchService {
 
   /**
    * Rank search results by relevance
-   * Priority: verified items first, then by proximity if location available
+   * Priority: Distance first (if location available), then verified items, then other factors
    */
   private static rankSearchResults(results: SearchResult[]): SearchResult[] {
     return results.sort((a, b) => {
-      // First priority: verified items
+      // FIRST PRIORITY: Distance (if available) - nearest items first
+      if (a.distance !== undefined && b.distance !== undefined) {
+        const distanceDiff = a.distance - b.distance;
+        if (Math.abs(distanceDiff) > 0.001) { // Only sort by distance if difference is significant
+          return distanceDiff;
+        }
+      }
+
+      // If one has distance and other doesn't, prioritize the one with distance
+      if (a.distance !== undefined && b.distance === undefined) return -1;
+      if (a.distance === undefined && b.distance !== undefined) return 1;
+
+      // SECOND PRIORITY: verified items
       if (a.verified && !b.verified) return -1;
       if (!a.verified && b.verified) return 1;
 
-      // Second priority: fewer reports (more reliable)
+      // THIRD PRIORITY: fewer reports (more reliable)
       if (a.reportCount !== b.reportCount) {
         return a.reportCount - b.reportCount;
       }
 
-      // Third priority: distance (if available)
-      if (a.distance !== undefined && b.distance !== undefined) {
-        return a.distance - b.distance;
-      }
-
-      // Fourth priority: more recent verification
+      // FOURTH PRIORITY: more recent verification
       if (a.verified && b.verified) {
         const aTime = a.verifiedAt?.toDate?.()?.getTime() || 0;
         const bTime = b.verifiedAt?.toDate?.()?.getTime() || 0;
         return bTime - aTime; // More recent first
       }
 
-      // Finally: alphabetical by item name
+      // FINALLY: alphabetical by item name
       return a.name.localeCompare(b.name);
     });
   }
 
   /**
-   * Calculate distance between two points using Haversine formula
+   * Calculate distance between two points using Vincenty's formulae for maximum accuracy
+   * Accurate to within millimeters for distances up to 20,000 km
    */
   private static calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    // WGS-84 ellipsoid parameters
+    const a = 6378137; // Semi-major axis in meters
+    const b = 6356752.314245; // Semi-minor axis in meters
+    const f = 1 / 298.257223563; // Flattening
+
+    const L = this.toRadians(lon2 - lon1);
+    const U1 = Math.atan((1 - f) * Math.tan(this.toRadians(lat1)));
+    const U2 = Math.atan((1 - f) * Math.tan(this.toRadians(lat2)));
+    
+    const sinU1 = Math.sin(U1);
+    const cosU1 = Math.cos(U1);
+    const sinU2 = Math.sin(U2);
+    const cosU2 = Math.cos(U2);
+    
+    let lambda = L;
+    let lambdaP = 2 * Math.PI;
+    let iterLimit = 100;
+    let cosSqAlpha = 0;
+    let sinSigma = 0;
+    let cos2SigmaM = 0;
+    let cosSigma = 0;
+    let sigma = 0;
+    
+    while (Math.abs(lambda - lambdaP) > 1e-12 && --iterLimit > 0) {
+      const sinLambda = Math.sin(lambda);
+      const cosLambda = Math.cos(lambda);
+      
+      sinSigma = Math.sqrt(
+        (cosU2 * sinLambda) * (cosU2 * sinLambda) +
+        (cosU1 * sinU2 - sinU1 * cosU2 * cosLambda) * (cosU1 * sinU2 - sinU1 * cosU2 * cosLambda)
+      );
+      
+      if (sinSigma === 0) return 0; // Co-incident points
+      
+      cosSigma = sinU1 * sinU2 + cosU1 * cosU2 * cosLambda;
+      sigma = Math.atan2(sinSigma, cosSigma);
+      
+      const sinAlpha = cosU1 * cosU2 * sinLambda / sinSigma;
+      cosSqAlpha = 1 - sinAlpha * sinAlpha;
+      
+      cos2SigmaM = cosSigma - 2 * sinU1 * sinU2 / cosSqAlpha;
+      if (isNaN(cos2SigmaM)) cos2SigmaM = 0; // Equatorial line
+      
+      const C = f / 16 * cosSqAlpha * (4 + f * (4 - 3 * cosSqAlpha));
+      
+      lambdaP = lambda;
+      lambda = L + (1 - C) * f * sinAlpha * (
+        sigma + C * sinSigma * (
+          cos2SigmaM + C * cosSigma * (-1 + 2 * cos2SigmaM * cos2SigmaM)
+        )
+      );
+    }
+    
+    if (iterLimit === 0) {
+      // Fallback to Haversine if Vincenty fails to converge
+      return this.haversineDistance(lat1, lon1, lat2, lon2);
+    }
+    
+    const uSq = cosSqAlpha * (a * a - b * b) / (b * b);
+    const A = 1 + uSq / 16384 * (4096 + uSq * (-768 + uSq * (320 - 175 * uSq)));
+    const B = uSq / 1024 * (256 + uSq * (-128 + uSq * (74 - 47 * uSq)));
+    
+    const deltaSigma = B * sinSigma * (
+      cos2SigmaM + B / 4 * (
+        cosSigma * (-1 + 2 * cos2SigmaM * cos2SigmaM) -
+        B / 6 * cos2SigmaM * (-3 + 4 * sinSigma * sinSigma) * (-3 + 4 * cos2SigmaM * cos2SigmaM)
+      )
+    );
+    
+    const distance = b * A * (sigma - deltaSigma);
+    
+    // Convert from meters to kilometers and round to 3 decimal places for maximum precision
+    return Math.round((distance / 1000) * 1000) / 1000;
+  }
+
+  /**
+   * Fallback Haversine formula for cases where Vincenty fails to converge
+   */
+  private static haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
     const R = 6371; // Earth's radius in kilometers
     const dLat = this.toRadians(lat2 - lat1);
     const dLon = this.toRadians(lon2 - lon1);
@@ -136,7 +231,7 @@ export class SearchService {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const distance = R * c;
     
-    return Math.round(distance * 10) / 10; // Round to 1 decimal place
+    return Math.round(distance * 10) / 10;
   }
 
   private static toRadians(degrees: number): number {
