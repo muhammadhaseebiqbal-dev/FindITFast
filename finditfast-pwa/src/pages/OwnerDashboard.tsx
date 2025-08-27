@@ -45,7 +45,7 @@ export const OwnerDashboard: React.FC = () => {
   });
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
   const [allOwnerStores, setAllOwnerStores] = useState<any[]>([]);
-  // const [storesLoading, setStoresLoading] = useState(false);
+  const [storesLoading, setStoresLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ storeId: string; storeName: string } | null>(null);
   // const [editingStore, setEditingStore] = useState<any | null>(null);
 
