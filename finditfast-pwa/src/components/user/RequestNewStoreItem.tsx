@@ -11,20 +11,24 @@ export const RequestNewStoreItem: React.FC<RequestNewStoreItemProps> = ({
   onSuccess,
   onCancel
 }) => {
-  const [requestType, setRequestType] = useState<'new_store' | 'new_item'>('new_store');
+  // Only allow 'new_item' requests
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    title: string;
+    description: string;
+    userEmail: string;
+    itemName: string;
+    category: string;
+    priority: 'low' | 'medium' | 'high';
+  }>({
     title: '',
     description: '',
     userEmail: '',
-    address: '',
-    storeName: '',
     itemName: '',
     category: '',
-    priority: 'medium' as const
+    priority: 'medium'
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -34,36 +38,29 @@ export const RequestNewStoreItem: React.FC<RequestNewStoreItemProps> = ({
 
     try {
       const requestData: CreateUserRequestData = {
-        requestType,
+        requestType: 'new_item',
         title: formData.title,
         description: formData.description,
         userEmail: formData.userEmail || undefined,
         priority: formData.priority,
-        ...(requestType === 'new_store' && {
-          storeName: formData.storeName,
-          address: formData.address
-        }),
-        ...(requestType === 'new_item' && {
-          itemName: formData.itemName,
-          category: formData.category
-        })
+        itemName: formData.itemName,
+        category: formData.category
       };
 
       await UserRequestService.create(requestData);
       
-      setSuccessMessage(`Your ${requestType === 'new_store' ? 'store' : 'item'} request has been submitted successfully!`);
       
       // Reset form
       setFormData({
         title: '',
         description: '',
         userEmail: '',
-        address: '',
-        storeName: '',
         itemName: '',
         category: '',
         priority: 'medium'
       });
+    // Call success callback
+    onSuccess?.();
 
       // Call success callback after a short delay
       setTimeout(() => {
@@ -78,27 +75,10 @@ export const RequestNewStoreItem: React.FC<RequestNewStoreItemProps> = ({
     }
   };
 
-  if (successMessage) {
-    return (
-      <div className="bg-white rounded-xl p-6 shadow-sm">
-        <div className="text-center">
-          <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Request Submitted!</h3>
-          <p className="text-gray-600 mb-4">{successMessage}</p>
-          <p className="text-sm text-gray-500">Store owners will be able to see this request in their reports page.</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="bg-white rounded-xl p-6 shadow-sm">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">Request New Store/Item</h3>
+        <h3 className="text-lg font-semibold text-gray-900">Request New Item</h3>
         {onCancel && (
           <button
             onClick={onCancel}
@@ -110,35 +90,7 @@ export const RequestNewStoreItem: React.FC<RequestNewStoreItemProps> = ({
           </button>
         )}
       </div>
-
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Request Type */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Request Type</label>
-          <div className="flex space-x-4">
-            <label className="flex items-center">
-              <input
-                type="radio"
-                value="new_store"
-                checked={requestType === 'new_store'}
-                onChange={(e) => setRequestType(e.target.value as 'new_store')}
-                className="mr-2"
-              />
-              <span className="text-sm text-gray-700">New Store</span>
-            </label>
-            <label className="flex items-center">
-              <input
-                type="radio"
-                value="new_item"
-                checked={requestType === 'new_item'}
-                onChange={(e) => setRequestType(e.target.value as 'new_item')}
-                className="mr-2"
-              />
-              <span className="text-sm text-gray-700">New Item</span>
-            </label>
-          </div>
-        </div>
-
         {/* Title */}
         <div>
           <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
@@ -149,75 +101,39 @@ export const RequestNewStoreItem: React.FC<RequestNewStoreItemProps> = ({
             id="title"
             value={formData.title}
             onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-            placeholder={requestType === 'new_store' ? 'Store name or request title' : 'Item name or request title'}
+            placeholder="Item name or request title"
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
           />
         </div>
-
-        {/* Conditional Fields */}
-        {requestType === 'new_store' && (
-          <>
-            <div>
-              <label htmlFor="storeName" className="block text-sm font-medium text-gray-700 mb-1">
-                Store Name
-              </label>
-              <input
-                type="text"
-                id="storeName"
-                value={formData.storeName}
-                onChange={(e) => setFormData(prev => ({ ...prev, storeName: e.target.value }))}
-                placeholder="Name of the store you'd like to see added"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">
-                Address
-              </label>
-              <input
-                type="text"
-                id="address"
-                value={formData.address}
-                onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
-                placeholder="Store address or location"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </>
-        )}
-
-        {requestType === 'new_item' && (
-          <>
-            <div>
-              <label htmlFor="itemName" className="block text-sm font-medium text-gray-700 mb-1">
-                Item Name
-              </label>
-              <input
-                type="text"
-                id="itemName"
-                value={formData.itemName}
-                onChange={(e) => setFormData(prev => ({ ...prev, itemName: e.target.value }))}
-                placeholder="Name of the item you're looking for"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
-                Category
-              </label>
-              <input
-                type="text"
-                id="category"
-                value={formData.category}
-                onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                placeholder="e.g., Electronics, Clothing, Food, etc."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </>
-        )}
-
+        {/* Item Name */}
+        <div>
+          <label htmlFor="itemName" className="block text-sm font-medium text-gray-700 mb-1">
+            Item Name
+          </label>
+          <input
+            type="text"
+            id="itemName"
+            value={formData.itemName}
+            onChange={(e) => setFormData(prev => ({ ...prev, itemName: e.target.value }))}
+            placeholder="Name of the item you're looking for"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        {/* Category */}
+        <div>
+          <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
+            Category
+          </label>
+          <input
+            type="text"
+            id="category"
+            value={formData.category}
+            onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+            placeholder="e.g., Electronics, Clothing, Food, etc."
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
         {/* Description */}
         <div>
           <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
@@ -227,13 +143,12 @@ export const RequestNewStoreItem: React.FC<RequestNewStoreItemProps> = ({
             id="description"
             value={formData.description}
             onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-            placeholder={`Describe the ${requestType === 'new_store' ? 'store' : 'item'} you'd like to see added...`}
+            placeholder="Describe the item you'd like to see added..."
             rows={3}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
           />
         </div>
-
         {/* Email */}
         <div>
           <label htmlFor="userEmail" className="block text-sm font-medium text-gray-700 mb-1">
@@ -244,18 +159,14 @@ export const RequestNewStoreItem: React.FC<RequestNewStoreItemProps> = ({
             id="userEmail"
             value={formData.userEmail}
             onChange={(e) => setFormData(prev => ({ ...prev, userEmail: e.target.value }))}
-            placeholder="Your email for updates (optional)"
+            placeholder="Your email address (optional)"
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
-
         {/* Priority */}
         <div>
-          <label htmlFor="priority" className="block text-sm font-medium text-gray-700 mb-1">
-            Priority
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
           <select
-            id="priority"
             value={formData.priority}
             onChange={(e) => setFormData(prev => ({ ...prev, priority: e.target.value as 'low' | 'medium' | 'high' }))}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -265,19 +176,14 @@ export const RequestNewStoreItem: React.FC<RequestNewStoreItemProps> = ({
             <option value="high">High</option>
           </select>
         </div>
-
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-            <p className="text-sm text-red-600">{error}</p>
-          </div>
-        )}
-
-        <div className="flex space-x-3 pt-4">
+        {/* Error */}
+        {error && <div className="text-red-600 text-sm">{error}</div>}
+        <div className="flex items-center justify-end space-x-3 pt-2">
           {onCancel && (
             <button
               type="button"
               onClick={onCancel}
-              className="flex-1 py-3 px-4 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+              className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200"
             >
               Cancel
             </button>
@@ -285,7 +191,7 @@ export const RequestNewStoreItem: React.FC<RequestNewStoreItemProps> = ({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="flex-1 py-3 px-4 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-6 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-50"
           >
             {isSubmitting ? 'Submitting...' : 'Submit Request'}
           </button>
