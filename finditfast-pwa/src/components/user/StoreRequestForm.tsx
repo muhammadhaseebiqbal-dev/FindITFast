@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { StoreRequestService } from '../../services/storeRequestService';
-import { GeolocationService } from '../../services/geolocationService';
+import { GeocodingService } from '../../services/geocodingService';
 import type { CreateStoreRequestData } from '../../services/storeRequestService';
 
 interface StoreRequestFormProps {
@@ -12,10 +12,6 @@ interface StoreRequestFormProps {
 interface FormData {
   storeName: string;
   address: string;
-  location?: {
-    latitude: number;
-    longitude: number;
-  };
   notes?: string;
 }
 
@@ -30,7 +26,7 @@ export const StoreRequestForm: React.FC<StoreRequestFormProps> = ({
     notes: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [isGeocodingAddress, setIsGeocodingAddress] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [successMessage, setSuccessMessage] = useState('');
 
@@ -49,26 +45,7 @@ export const StoreRequestForm: React.FC<StoreRequestFormProps> = ({
     }
   };
 
-  const handleGetCurrentLocation = async () => {
-    setIsGettingLocation(true);
-    try {
-      const location = await GeolocationService.getCurrentLocation();
-      if (location) {
-        setFormData(prev => ({
-          ...prev,
-          location: {
-            latitude: location.latitude,
-            longitude: location.longitude,
-          },
-        }));
-      }
-    } catch (error) {
-      console.error('Error getting location:', error);
-      // Location is optional, so we don't show an error
-    } finally {
-      setIsGettingLocation(false);
-    }
-  };
+  // Geocoding functionality integrated into form submission
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,12 +69,34 @@ export const StoreRequestForm: React.FC<StoreRequestFormProps> = ({
       return;
     }
 
+    // Geocode the address to get coordinates
+    setIsGeocodingAddress(true);
+    let geocodingResult = null;
+    try {
+      geocodingResult = await GeocodingService.geocodeAddress(formData.address);
+      if (!geocodingResult) {
+        setErrors(['Unable to find location for the provided address. Please check the address and try again.']);
+        return;
+      }
+    } catch (geocodingError: any) {
+      setErrors([`Address validation failed: ${geocodingError.message || 'Please check the address and try again.'}`]);
+      return;
+    } finally {
+      setIsGeocodingAddress(false);
+    }
+
     setIsSubmitting(true);
 
     try {
       const requestData: CreateStoreRequestData = {
         ...formData,
         requestedBy: user.uid,
+        // Add geocoded location data
+        location: {
+          latitude: geocodingResult.latitude,
+          longitude: geocodingResult.longitude
+        },
+        formattedAddress: geocodingResult.formattedAddress,
       };
 
       await StoreRequestService.createStoreRequest(requestData);
@@ -199,25 +198,17 @@ export const StoreRequestForm: React.FC<StoreRequestFormProps> = ({
           />
         </div>
 
-        <div>
-          <div className="flex items-center justify-between">
-            <label className="block text-sm font-medium text-gray-700">
-              Location (Optional)
-            </label>
-            <button
-              type="button"
-              onClick={handleGetCurrentLocation}
-              disabled={isGettingLocation}
-              className="text-sm text-blue-600 hover:text-blue-500 disabled:text-gray-400"
-            >
-              {isGettingLocation ? 'Getting location...' : 'Use current location'}
-            </button>
+        {/* Location coordinates will be automatically generated from the address using geocoding */}
+        <div className="bg-blue-50 rounded-xl p-4">
+          <div className="flex items-center mb-2">
+            <svg className="w-4 h-4 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h4 className="text-sm font-medium text-blue-900">Location Information</h4>
           </div>
-          {formData.location && (
-            <p className="mt-1 text-xs text-gray-500">
-              Location captured: {formData.location.latitude.toFixed(6)}, {formData.location.longitude.toFixed(6)}
-            </p>
-          )}
+          <p className="text-xs text-blue-700">
+            Store coordinates will be automatically generated from your address when you submit the form. No need to manually enter coordinates or allow location permissions.
+          </p>
         </div>
 
         <div>
@@ -238,10 +229,10 @@ export const StoreRequestForm: React.FC<StoreRequestFormProps> = ({
         <div className="flex space-x-3 pt-4">
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || isGeocodingAddress}
             className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
           >
-            {isSubmitting ? 'Submitting...' : 'Submit Request'}
+            {isSubmitting ? 'Submitting...' : isGeocodingAddress ? 'Validating Address...' : 'Submit Request'}
           </button>
           {onCancel && (
             <button

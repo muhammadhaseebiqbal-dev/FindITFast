@@ -1690,17 +1690,17 @@ export const AdminDashboard: React.FC = () => {
                   <div className="space-y-4">
                     {stores.map(store => (
                       <div key={store.id} className="border border-gray-200 rounded-xl p-6 hover:border-gray-300 transition-colors">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
+                        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between space-y-4 lg:space-y-0">
+                          <div className="flex-1 lg:min-w-0">
                             <div className="flex items-center space-x-3 mb-3">
                               <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
                                 <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                                 </svg>
                               </div>
-                              <div>
-                                <h3 className="text-lg font-semibold text-gray-900">{store.name}</h3>
-                                <p className="text-sm text-gray-600">Store ID: {store.id}</p>
+                              <div className="flex-1 min-w-0">
+                                <h3 className="text-lg font-semibold text-gray-900 truncate">{store.name}</h3>
+                                <p className="text-sm text-gray-600 truncate">Store ID: {store.id}</p>
                               </div>
                             </div>
 
@@ -1748,35 +1748,38 @@ export const AdminDashboard: React.FC = () => {
                             )}
                           </div>
 
-                          <div className="ml-6 flex flex-col space-y-2">
+                          {/* Action buttons - responsive layout */}
+                          <div className="lg:ml-6 flex flex-row lg:flex-col space-x-2 lg:space-x-0 lg:space-y-2 flex-shrink-0">
                             {store.floorplanUrl && (
                               <a
                                 href={store.floorplanUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex items-center px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                className="flex items-center justify-center px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap"
                               >
-                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-4 h-4 mr-1 lg:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                 </svg>
-                                View Floorplan
+                                <span className="hidden sm:inline">View Floorplan</span>
+                                <span className="sm:hidden">View</span>
                               </a>
                             )}
                             
                             <button
                               onClick={() => setDeleteConfirm({ storeId: store.id, storeName: store.name })}
                               disabled={!!actionLoading}
-                              className={`flex items-center px-3 py-2 text-sm rounded-lg transition-colors ${
+                              className={`flex items-center justify-center px-3 py-2 text-sm rounded-lg transition-colors whitespace-nowrap ${
                                 actionLoading
                                   ? 'bg-red-300 text-white cursor-not-allowed'
                                   : 'bg-red-600 text-white hover:bg-red-700'
                               }`}
                             >
-                              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-4 h-4 mr-1 lg:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                               </svg>
-                              Delete Store
+                              <span className="hidden sm:inline">Delete Store</span>
+                              <span className="sm:hidden">Delete</span>
                             </button>
                           </div>
                         </div>
@@ -2469,27 +2472,6 @@ export const AdminDashboard: React.FC = () => {
                     <p className="text-xs text-gray-500">All users will see this when no search is active.</p>
                     <div className="flex space-x-2">
                       <button
-                        type="button"
-                        onClick={() => {
-                          const ref = doc(db, 'appConfig', 'public');
-                          getDoc(ref).then(snap => {
-                            if (snap.exists()) {
-                              console.log('🔍 Current config:', snap.data());
-                              alert(`Current config: ${JSON.stringify(snap.data(), null, 2)}`);
-                            } else {
-                              console.log('🔍 No config document exists');
-                              alert('No config document exists yet');
-                            }
-                          }).catch(err => {
-                            console.error('🔍 Error checking config:', err);
-                            alert(`Error: ${err.message}`);
-                          });
-                        }}
-                        className="px-3 py-2 text-gray-600 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
-                      >
-                        Debug Config
-                      </button>
-                      <button
                         type="submit"
                         disabled={savingBanner}
                         className={`px-4 py-2 text-white rounded-lg font-medium ${savingBanner ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
@@ -2681,60 +2663,6 @@ export const AdminDashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* App Configuration */}
-              <div className="mt-8">
-                <h3 className="text-md font-semibold text-gray-800 mb-3">App Configuration</h3>
-                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                  <form onSubmit={handleSaveBanner} className="space-y-3">
-                    <label className="block text-sm text-gray-700" htmlFor="home-banner-text">Home Banner Text</label>
-                    <textarea
-                      id="home-banner-text"
-                      value={homeBannerText}
-                      onChange={(e) => setHomeBannerText(e.target.value)}
-                      placeholder="Enter the announcement text to show on the home page"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px]"
-                    />
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-gray-500">Visible on the main Search page when no search is active.</p>
-                      <div className="flex space-x-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const ref = doc(db, 'appConfig', 'public');
-                            getDoc(ref).then(snap => {
-                              if (snap.exists()) {
-                                console.log('🔍 Current config (settings):', snap.data());
-                                alert(`Current config: ${JSON.stringify(snap.data(), null, 2)}`);
-                              } else {
-                                console.log('🔍 No config document exists (settings)');
-                                alert('No config document exists yet');
-                              }
-                            }).catch(err => {
-                              console.error('🔍 Error checking config (settings):', err);
-                              alert(`Error: ${err.message}`);
-                            });
-                          }}
-                          className="px-3 py-2 text-gray-600 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
-                        >
-                          Debug Config
-                        </button>
-                        <button
-                          type="submit"
-                          disabled={savingBanner}
-                          className={`px-4 py-2 text-white rounded-lg font-medium ${savingBanner ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
-                        >
-                          {savingBanner ? 'Saving...' : 'Save Banner'}
-                        </button>
-                      </div>
-                    </div>
-                    {bannerStatus && (
-                      <div className={`p-2 rounded text-sm ${bannerStatus.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-                        {bannerStatus.message}
-                      </div>
-                    )}
-                  </form>
-                </div>
-              </div>
             </div>
           )}
           </div>

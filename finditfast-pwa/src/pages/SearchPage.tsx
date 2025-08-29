@@ -7,9 +7,7 @@ import { MobileLayout, MobileContent } from '../components/common/MobileLayout';
 import { LazyLoad } from '../components/performance/LazyLoading';
 import { RequestNewStoreItem } from '../components/user/RequestNewStoreItem';
 import { SearchService } from '../services/searchService';
-import { GeolocationService } from '../services/geolocationService';
 import type { SearchResult, SearchState } from '../types/search';
-import type { LocationCoordinates } from '../services/geolocationService';
 
 // Custom hook for debouncing
 const useDebounce = (value: string, delay: number) => {
@@ -44,8 +42,7 @@ export const SearchPage: React.FC = () => {
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [showRequestForm, setShowRequestForm] = useState(false);
   
-  const [userLocation, setUserLocation] = useState<LocationCoordinates | null>(null);
-  const [locationPermission, setLocationPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
+  // Location services removed - search works without location data
 
   // Debounce search input
   const debouncedSearchInput = useDebounce(searchInput, 300);
@@ -90,7 +87,7 @@ export const SearchPage: React.FC = () => {
     }));
 
     try {
-      const results = await SearchService.searchItems(query, userLocation || undefined);
+      const results = await SearchService.searchItems(query, undefined);
       
       setSearchState(prev => ({
         ...prev,
@@ -108,7 +105,7 @@ export const SearchPage: React.FC = () => {
         error: error instanceof Error ? error.message : 'Search failed'
       }));
     }
-  }, [userLocation, saveToRecentSearches]);
+  }, [saveToRecentSearches]);
 
   // Handle debounced search
   useEffect(() => {
@@ -126,29 +123,7 @@ export const SearchPage: React.FC = () => {
     }
   }, [debouncedSearchInput, performSearch]);
 
-  // Initialize geolocation on component mount
-  useEffect(() => {
-    const initializeLocation = async () => {
-      const permission = await GeolocationService.checkPermission();
-      
-      if (permission === 'granted') {
-        setLocationPermission('granted');
-        const location = await GeolocationService.getCurrentLocation();
-        setUserLocation(location);
-        GeolocationService.startWatching();
-      } else if (permission === 'denied') {
-        setLocationPermission('denied');
-      } else {
-        // Permission not determined
-      }
-    };
-
-    initializeLocation();
-    
-    return () => {
-      GeolocationService.cleanup();
-    };
-  }, []);
+  // Location services removed - search works without location data
 
   // Subscribe to global banner text from Firestore
   useEffect(() => {
@@ -159,23 +134,21 @@ export const SearchPage: React.FC = () => {
         try {
           if (snapshot.exists()) {
             const data = snapshot.data();
-            console.log('🏠 Home banner config loaded:', data);
             if (data && typeof data.homeBannerText === 'string' && data.homeBannerText.trim()) {
               setBannerText(data.homeBannerText.trim());
             } else {
               setBannerText(defaultBannerText);
             }
           } else {
-            console.log('🏠 Home banner config does not exist, using default');
             setBannerText(defaultBannerText);
           }
         } catch (error) {
-          console.error('❌ Error loading home banner config:', error);
+          console.error('Error loading home banner config:', error);
           setBannerText(defaultBannerText);
         }
       },
       (error) => {
-        console.error('❌ Error in home banner listener:', error);
+        console.error('Error in home banner listener:', error);
         setBannerText(defaultBannerText);
       }
     );
@@ -195,27 +168,17 @@ export const SearchPage: React.FC = () => {
     navigate(`/item/${result.id}/store/${result.store.id}`);
   }, [navigate]);
 
-  const handleLocationRequest = useCallback(async () => {
-    const granted = await GeolocationService.requestPermission();
-    if (granted) {
-      setLocationPermission('granted');
-      const location = await GeolocationService.getCurrentLocation();
-      setUserLocation(location);
-      GeolocationService.startWatching();
-    } else {
-      setLocationPermission('denied');
-    }
-  }, []);
+  // Location request handler removed
 
   return (
     <MobileLayout>
       {/* Header */}
       <div className="bg-white/95 backdrop-blur-lg border-b border-slate-200/50 sticky top-0 z-40 pt-safe-top">
-        <div className="bg-gray-600 px-4 py-3 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-4 py-3 flex items-center justify-between">
           <h1 className="text-lg font-medium text-white">FindItFast</h1>
           <button
             onClick={() => navigate('/admin/auth')}
-            className="p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+            className="p-2 rounded-2xl text-white/80 hover:text-white hover:bg-white/10 transition-colors"
             title="Admin Panel"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -232,7 +195,7 @@ export const SearchPage: React.FC = () => {
           <div className="px-4 py-6">
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="h-5 w-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </div>
@@ -241,7 +204,7 @@ export const SearchPage: React.FC = () => {
                 value={searchInput}
                 onChange={(e) => handleInputChange(e.target.value)}
                 placeholder="Search for an item..."
-                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-3 border-2 border-blue-200 rounded-2xl bg-white text-gray-900 placeholder-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-200 focus:border-blue-400 transition-all"
               />
             </div>
           </div>
@@ -249,65 +212,80 @@ export const SearchPage: React.FC = () => {
           {/* Welcome Banner - Hidden during search */}
           {!searchInput.trim() && (
             <div className="px-4 mb-6">
-              <div className="bg-gray-200 rounded-xl p-4">
-                <p className="text-sm text-gray-700 leading-relaxed">
+              <div className="bg-gradient-to-r from-blue-100 to-purple-100 rounded-2xl p-4 border border-blue-200">
+                <p className="text-sm text-blue-800 leading-relaxed font-medium">
                   {bannerText}
                 </p>
               </div>
             </div>
           )}
 
+          {/* Admin Panel section removed - accessible via gear icon in navigation bar */}
+
           {/* Store Owners Section - Hidden during search */}
           {!searchInput.trim() && (
             <div className="px-4 mb-6">
-              <div className="bg-white rounded-xl p-4 shadow-sm">
-                <div className="flex items-center mb-3">
-                  <div className="w-6 h-6 bg-gray-800 rounded flex items-center justify-center mr-3">
-                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="bg-gradient-to-br from-white to-green-50 rounded-2xl p-5 shadow-lg border border-green-100">
+                <div className="flex items-center mb-4">
+                  <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl flex items-center justify-center mr-3">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                     </svg>
                   </div>
-                  <h2 className="text-lg font-semibold text-gray-900">Store Owners</h2>
+                  <h2 className="text-lg font-bold text-green-800">Store Owners</h2>
                 </div>
-                <p className="text-sm text-gray-600 mb-4">
-                  Upload your store layout and items to help customers find products easily.
+                <p className="text-sm text-green-700 mb-5 font-medium">
+                  Join our platform to upload your store layout and help customers find products easily.
                 </p>
-                <div className="space-y-3">
-                  <button 
-                    onClick={() => navigate('/owner/auth?mode=login')}
-                    className="w-full bg-gray-800 text-white py-3 px-4 rounded-xl font-medium hover:bg-gray-900 transition-colors"
-                  >
-                    Store Owner Login
-                  </button>
-                  <button 
-                    onClick={() => navigate('/admin/auth')}
-                    className="w-full bg-gray-200 text-gray-700 py-3 px-4 rounded-xl font-medium hover:bg-gray-300 transition-colors flex items-center justify-center"
-                  >
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    Admin Panel
-                  </button>
-                  <button 
-                    onClick={() => setShowRequestForm(true)}
-                    className="w-full bg-blue-600 text-white py-3 px-4 rounded-xl font-medium hover:bg-blue-700 transition-colors flex items-center justify-center"
-                  >
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    Request New Item
-                  </button>
-                </div>
+                <button 
+                  onClick={() => navigate('/owner/auth?mode=signup')}
+                  className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-3 px-4 rounded-2xl font-bold hover:from-green-600 hover:to-emerald-600 transition-all transform hover:scale-105 flex items-center justify-center shadow-lg"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                  Store Owner Sign Up
+                </button>
               </div>
             </div>
           )}
 
-          {/* Request Form - Hidden during search */}
-          {!searchInput.trim() && showRequestForm && (
+          {/* Request New Item Section - Hidden during search */}
+          {!searchInput.trim() && !showRequestForm && (
+            <div className="px-4 mb-6">
+              <div className="bg-gradient-to-br from-white to-orange-50 rounded-2xl p-5 shadow-lg border border-orange-100">
+                <div className="flex items-center mb-4">
+                  <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-amber-500 rounded-2xl flex items-center justify-center mr-3">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                  </div>
+                  <h2 className="text-lg font-bold text-orange-800">Can't Find What You're Looking For?</h2>
+                </div>
+                <p className="text-sm text-orange-700 mb-5 font-medium">
+                  Request new items to be added to our stores. Help us improve our inventory!
+                </p>
+                <button 
+                  onClick={() => setShowRequestForm(true)}
+                  className="w-full bg-gradient-to-r from-orange-500 to-amber-500 text-white py-3 px-4 rounded-2xl font-bold hover:from-orange-600 hover:to-amber-600 transition-all transform hover:scale-105 flex items-center justify-center shadow-lg"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  Request New Item
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Request New Item Form */}
+          {showRequestForm && (
             <div className="px-4 mb-6">
               <RequestNewStoreItem
-                onSuccess={() => setShowRequestForm(false)}
+                onSuccess={() => {
+                  setShowRequestForm(false);
+                  // Show success message or toast
+                }}
                 onCancel={() => setShowRequestForm(false)}
               />
             </div>
@@ -316,53 +294,27 @@ export const SearchPage: React.FC = () => {
           {/* Recently Searched Section - Hidden during search */}
           {!searchInput.trim() && recentSearches.length > 0 && (
             <div className="px-4 mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Recently Searched</h3>
+              <h3 className="text-xl font-bold text-purple-800 mb-4">Recently Searched</h3>
               <div className="space-y-3">
                 {recentSearches.map((search, index) => (
                   <button
                     key={index}
                     onClick={() => handleRecentSearchClick(search)}
-                    className="flex items-center bg-white rounded-xl p-4 shadow-sm w-full text-left hover:bg-gray-50 transition-colors"
+                    className="flex items-center bg-gradient-to-r from-white to-purple-50 rounded-2xl p-4 shadow-md w-full text-left hover:from-purple-50 hover:to-purple-100 transition-all transform hover:scale-105 border border-purple-100"
                   >
-                    <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center mr-3">
-                      <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-10 h-10 bg-gradient-to-r from-purple-400 to-pink-400 rounded-2xl flex items-center justify-center mr-3">
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
-                    <span className="text-gray-900 font-medium">{search}</span>
+                    <span className="text-purple-800 font-semibold">{search}</span>
                   </button>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Location Permission Banner */}
-          {locationPermission === 'unknown' && (
-            <div className="px-4 mb-6">
-              <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center mr-3">
-                      <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">Enable Location</p>
-                      <p className="text-xs text-gray-600">Get better search results</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={handleLocationRequest}
-                    className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
-                  >
-                    Enable
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Location Permission Banner removed - search works without location permissions */}
 
           {/* Search Results */}
           {searchState.query && (

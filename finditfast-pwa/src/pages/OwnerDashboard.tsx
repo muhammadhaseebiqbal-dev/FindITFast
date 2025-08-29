@@ -8,6 +8,7 @@ import { StoreService, ItemService } from '../services/firestoreService';
 import { collection, query, where, getDocs, onSnapshot, addDoc, serverTimestamp, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { fixOwnerProfile } from '../utils/debugOwnerProfile';
+import { GeocodingService } from '../services/geocodingService';
 import type { Store, Item } from '../types';
 
 export const OwnerDashboard: React.FC = () => {
@@ -27,10 +28,9 @@ export const OwnerDashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showStoreRequestForm, setShowStoreRequestForm] = useState(false);
   const [storeRequests, setStoreRequests] = useState<any[]>([]);
-  const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
-  const [locationData, setLocationData] = useState<{latitude: number; longitude: number} | null>(null);
-  const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
+  const [isGeocodingAddress, setIsGeocodingAddress] = useState(false);
+  // Location functionality removed - using address-based geocoding
   const [formData, setFormData] = useState({
     storeName: '',
     storeType: '',
@@ -93,6 +93,15 @@ export const OwnerDashboard: React.FC = () => {
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+        </svg>
+      )
+    },
+    { 
+      id: 'reports', 
+      label: 'Reports', 
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
         </svg>
       )
     }
@@ -235,154 +244,7 @@ export const OwnerDashboard: React.FC = () => {
     autoFixOwnerProfile();
   }, [user, ownerProfile]);
 
-  // Handle geolocation
-  const handleGetCurrentLocation = async () => {
-    setIsGettingLocation(true);
-    setError(null); // Clear any previous errors
-    
-    try {
-      // Check if geolocation is supported
-      if (!navigator.geolocation) {
-        throw new Error('Geolocation is not supported by this browser');
-      }
-
-      // Use a more aggressive approach to bypass browser permission caching issues
-      let position: GeolocationPosition;
-      
-      // Try with watchPosition first (sometimes works when getCurrentPosition fails)
-      let watchId: number | null = null;
-      
-      try {
-        position = await new Promise<GeolocationPosition>((resolve, reject) => {
-          const timeoutId = setTimeout(() => {
-            if (watchId !== null) {
-              navigator.geolocation.clearWatch(watchId);
-            }
-            reject(new Error('Location request timed out'));
-          }, 3000); // Very short timeout for watch
-
-          watchId = navigator.geolocation.watchPosition(
-            (pos) => {
-              clearTimeout(timeoutId);
-              if (watchId !== null) {
-                navigator.geolocation.clearWatch(watchId);
-              }
-              resolve(pos);
-            },
-            (err) => {
-              clearTimeout(timeoutId);
-              if (watchId !== null) {
-                navigator.geolocation.clearWatch(watchId);
-              }
-              reject(err);
-            },
-            {
-              enableHighAccuracy: false,
-              timeout: 2000,
-              maximumAge: 0
-            }
-          );
-        });
-      } catch (watchError: any) {
-        console.log('watchPosition failed, trying getCurrentPosition:', watchError);
-        
-        // If watchPosition fails, try getCurrentPosition as fallback
-        position = await new Promise<GeolocationPosition>((resolve, reject) => {
-          const timeoutId = setTimeout(() => {
-            reject(new Error('Location request timed out after all attempts'));
-          }, 5000);
-
-          navigator.geolocation.getCurrentPosition(
-            (pos) => {
-              clearTimeout(timeoutId);
-              resolve(pos);
-            },
-            (err) => {
-              clearTimeout(timeoutId);
-              // Instead of rejecting immediately, show user-friendly error
-              if (err.code === 1) {
-                reject(new Error('PERMISSION_OVERRIDE_NEEDED'));
-              } else {
-                reject(err);
-              }
-            },
-            {
-              enableHighAccuracy: false,
-              timeout: 4000,
-              maximumAge: 60000 // Allow slightly cached location as last resort
-            }
-          );
-        });
-      }
-
-      const { latitude, longitude } = position.coords;
-      
-      // Validate coordinates
-      if (!latitude || !longitude || isNaN(latitude) || isNaN(longitude)) {
-        throw new Error('Invalid location data received. Please try again.');
-      }
-
-      setLocationData({ latitude, longitude });
-      setLocationPermissionDenied(false);
-      setUploadSuccess(`Location captured: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
-      setTimeout(() => setUploadSuccess(null), 3000);
-      
-    } catch (error: any) {
-      console.error('Geolocation error:', error);
-      
-      // Special handling for the permission override case
-      if (error.message === 'PERMISSION_OVERRIDE_NEEDED') {
-        setLocationPermissionDenied(true);
-        setError('Location permission issue detected. Please try this workaround:\n\n' +
-                '1. Refresh this page (F5 or Ctrl+R)\n' +
-                '2. When prompted for location access, click "Allow"\n' +
-                '3. Try the location button again\n\n' +
-                'If that doesn\'t work:\n' +
-                '• Go to chrome://settings/content/location\n' +
-                '• Remove this site from the blocked list\n' +
-                '• Refresh and try again\n\n' +
-                'Or enter coordinates manually below.');
-        setIsGettingLocation(false);
-        return;
-      }
-      
-      let errorMessage = 'Unable to get your location. ';
-      
-      // Handle different types of errors
-      if (error.code) {
-        switch (error.code) {
-          case 1: // PERMISSION_DENIED
-            setLocationPermissionDenied(true);
-            errorMessage = 'Location access is blocked by your browser. Try this:\n\n' +
-                          '1. Click the lock icon (🔒) in your address bar\n' +
-                          '2. Set Location to "Allow"\n' +
-                          '3. Refresh the page and try again\n\n' +
-                          'Alternative:\n' +
-                          '• Open a new incognito/private window\n' +
-                          '• Navigate to this page again\n' +
-                          '• Allow location when prompted\n\n' +
-                          'Or enter coordinates manually below.';
-            break;
-          case 2: // POSITION_UNAVAILABLE
-            errorMessage += 'Location services are currently unavailable. Please check your device settings and try again.';
-            break;
-          case 3: // TIMEOUT
-            errorMessage += 'Location request timed out. Please ensure location services are enabled and try again.';
-            break;
-          default:
-            errorMessage += 'An unexpected error occurred. Please try again.';
-        }
-      } else {
-        // Handle custom error messages
-        errorMessage = error.message || 'Failed to get location. Please try again or enter coordinates manually.';
-      }
-      
-      setError(errorMessage);
-      setTimeout(() => setError(null), 10000);
-    } finally {
-      setIsGettingLocation(false);
-    }
-  };
+  // Geolocation functionality removed - using address-based geocoding instead
 
   // Handle form input changes
   const handleFormInputChange = (field: string, value: string) => {
@@ -500,10 +362,22 @@ export const OwnerDashboard: React.FC = () => {
       return;
     }
 
-    if (!locationData || !locationData.latitude || !locationData.longitude) {
-      setError('Please provide store location coordinates. Use "Get Current Location" or enter them manually.');
+    // Geocode the address to get coordinates
+    setIsGeocodingAddress(true);
+    let geocodingResult = null;
+    try {
+      geocodingResult = await GeocodingService.geocodeAddress(formData.address);
+      if (!geocodingResult) {
+        setError('Unable to find location for the provided address. Please check the address and try again.');
+        setTimeout(() => setError(null), 8000);
+        return;
+      }
+    } catch (geocodingError: any) {
+      setError(`Address validation failed: ${geocodingError.message || 'Please check the address and try again.'}`);
       setTimeout(() => setError(null), 8000);
       return;
+    } finally {
+      setIsGeocodingAddress(false);
     }
 
     if (formData.documents.length === 0) {
@@ -536,10 +410,13 @@ export const OwnerDashboard: React.FC = () => {
         ownerId: user.uid,      // Keep ownerId for backward compatibility
         status: 'pending',
         submittedAt: serverTimestamp(),
+        // Store both original address and geocoded location data
+        address: formData.address,
+        formattedAddress: geocodingResult.formattedAddress,
         location: {
-          latitude: locationData.latitude,
-          longitude: locationData.longitude,
-          address: formData.address
+          latitude: geocodingResult.latitude,
+          longitude: geocodingResult.longitude,
+          address: geocodingResult.formattedAddress
         },
         documents: formData.documents, // Store the base64 documents directly
         documentsCount: formData.documents.length,
@@ -553,7 +430,6 @@ export const OwnerDashboard: React.FC = () => {
       setUploadSuccess('Store request submitted successfully! You will be notified once it is reviewed.');
       setShowStoreRequestForm(false);
       setFormData({ storeName: '', storeType: '', address: '', documents: [] });
-      setLocationData(null);
       
       // Switch to requests tab to show the new request
       setTimeout(() => {
@@ -1006,131 +882,17 @@ export const OwnerDashboard: React.FC = () => {
                       />
                     </div>
 
-                    <div className="bg-gray-50 rounded-xl p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-sm font-medium text-gray-900">Location Services</h4>
-                        <div className="flex space-x-2">
-                          <button
-                            type="button"
-                            onClick={handleGetCurrentLocation}
-                            disabled={isGettingLocation}
-                            className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
-                          >
-                            {isGettingLocation ? (
-                              <>
-                                <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                <span>Getting Location...</span>
-                              </>
-                            ) : (
-                              <>
-                                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                                <span>Get Location</span>
-                              </>
-                            )}
-                          </button>
-                          
-                          {locationPermissionDenied && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  // Reset permission state and try to force a fresh prompt
-                                  setLocationPermissionDenied(false);
-                                  setError('Permission reset! Try one of these:\n\n' +
-                                          '1. Refresh the page (F5) and try location again\n' +
-                                          '2. Open an incognito/private window and navigate here\n' +
-                                          '3. Go to browser Settings > Privacy > Location > Remove this site\n\n' +
-                                          'Then try the location button again.');
-                                  setTimeout(() => setError(null), 15000);
-                                }}
-                                className="bg-green-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-green-700 transition-colors flex items-center space-x-1"
-                              >
-                                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                </svg>
-                                <span>Reset</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  // Provide manual instructions
-                                  setError('To enable location access:\n\n1. Look for the location icon (🔒 or 📍) in your browser\'s address bar\n2. Click it and select "Allow"\n3. Refresh the page and try again\n\nOr enter coordinates manually below.');
-                                  setTimeout(() => setError(null), 10000);
-                                }}
-                                className="bg-amber-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-amber-700 transition-colors flex items-center space-x-1"
-                              >
-                                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                <span>Help</span>
-                              </button>
-                            </>
-                          )}
-                        </div>
+                    {/* Location coordinates will be automatically generated from the address using geocoding */}
+                    <div className="bg-blue-50 rounded-xl p-4">
+                      <div className="flex items-center mb-2">
+                        <svg className="w-4 h-4 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <h4 className="text-sm font-medium text-blue-900">Location Information</h4>
                       </div>
-                      <p className="text-xs text-gray-600 mb-3">
-                        Use geolocation to automatically detect your store's coordinates, or enter them manually below.
+                      <p className="text-xs text-blue-700">
+                        Store coordinates will be automatically generated from your address when you submit the form. No need to manually enter coordinates or allow location permissions.
                       </p>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">Latitude</label>
-                          <input
-                            type="number"
-                            step="any"
-                            value={locationData ? locationData.latitude.toFixed(6) : ''}
-                            onChange={(e) => {
-                              const lat = parseFloat(e.target.value) || 0;
-                              setLocationData(prev => prev ? { ...prev, latitude: lat } : { latitude: lat, longitude: 0 });
-                            }}
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-800"
-                            placeholder="40.7128"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">Longitude</label>
-                          <input
-                            type="number"
-                            step="any"
-                            value={locationData ? locationData.longitude.toFixed(6) : ''}
-                            onChange={(e) => {
-                              const lng = parseFloat(e.target.value) || 0;
-                              setLocationData(prev => prev ? { ...prev, longitude: lng } : { latitude: 0, longitude: lng });
-                            }}
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-800"
-                            placeholder="-74.0060"
-                          />
-                        </div>
-                      </div>
-                      {locationData && (
-                        <div className="mt-2 p-2 bg-green-100 rounded-lg">
-                          <p className="text-xs text-green-700 flex items-center">
-                            <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                            </svg>
-                            Location successfully captured
-                          </p>
-                        </div>
-                      )}
-                      
-                      {!locationData && (
-                        <div className="mt-2 p-3 bg-blue-50 rounded-lg">
-                          <p className="text-xs text-blue-700 font-medium mb-1">Need help with location?</p>
-                          <p className="text-xs text-blue-600">
-                            • Click "Get Current Location" to auto-detect coordinates<br/>
-                            • If access is denied, allow location in your browser:<br/>
-                            &nbsp;&nbsp;Chrome: Click 🔒 in address bar → Location → Allow<br/>
-                            &nbsp;&nbsp;Firefox: Click 🛡️ in address bar → Permissions → Location<br/>
-                            • You can also find coordinates at <a href="https://maps.google.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-800">Google Maps</a><br/>
-                            • Right-click your store location and select "What's here?"
-                          </p>
-                        </div>
-                      )}
                     </div>
 
                     <div>
@@ -1218,13 +980,18 @@ export const OwnerDashboard: React.FC = () => {
                       </button>
                       <button
                         type="submit"
-                        disabled={isSubmittingRequest}
+                        disabled={isSubmittingRequest || isGeocodingAddress}
                         className="px-6 py-3 bg-gray-800 text-white rounded-xl font-medium hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isSubmittingRequest ? (
                           <div className="flex items-center space-x-2">
                             <div className="w-4 h-4 border border-white border-t-transparent rounded-full animate-spin"></div>
                             <span>Submitting...</span>
+                          </div>
+                        ) : isGeocodingAddress ? (
+                          <div className="flex items-center space-x-2">
+                            <div className="w-4 h-4 border border-white border-t-transparent rounded-full animate-spin"></div>
+                            <span>Validating Address...</span>
                           </div>
                         ) : (
                           'Submit Request'
