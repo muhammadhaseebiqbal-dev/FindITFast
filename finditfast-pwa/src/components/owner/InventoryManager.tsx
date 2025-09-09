@@ -342,13 +342,30 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Price (optional)
                   </label>
-                  <input
-                    type="text"
-                    value={itemForm.price}
-                    onChange={(e) => setItemForm(prev => ({ ...prev, price: e.target.value }))}
-                    placeholder="e.g., $5.99"
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={itemForm.price || '$'}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        let cleaned = value.replace(/[^\d.]/g, '');
+                        const parts = cleaned.split('.');
+                        if (parts.length > 2) {
+                          cleaned = parts[0] + '.' + parts.slice(1).join('');
+                        }
+                        if (parts[1] && parts[1].length > 2) {
+                          cleaned = parts[0] + '.' + parts[1].substring(0, 2);
+                        }
+                        const formattedValue = cleaned ? `$${cleaned}` : '$';
+                        setItemForm(prev => ({ ...prev, price: formattedValue }));
+                      }}
+                      placeholder="$0.00"
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                      <span className="text-gray-400 text-sm">AUD</span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Item Image */}

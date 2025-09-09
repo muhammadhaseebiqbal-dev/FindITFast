@@ -21,7 +21,14 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result, onClick }) => {
     if (!price) return '';
     
     // Convert string to number if needed
-    const numPrice = typeof price === 'string' ? parseFloat(price) : price;
+    let numPrice: number;
+    if (typeof price === 'string') {
+      // Remove $ symbol and any non-numeric characters except decimal point
+      const cleanPrice = price.replace(/[^\d.]/g, '');
+      numPrice = parseFloat(cleanPrice);
+    } else {
+      numPrice = price;
+    }
     
     // Check if it's a valid number
     if (isNaN(numPrice) || numPrice <= 0) return '';

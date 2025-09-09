@@ -6,6 +6,7 @@ import { SearchResults } from '../components/search';
 import { MobileLayout, MobileContent } from '../components/common/MobileLayout';
 import { LazyLoad } from '../components/performance/LazyLoading';
 import { SearchService } from '../services/searchService';
+import { useGeolocation } from '../hooks/useGeolocation';
 import type { SearchResult, SearchState } from '../types/search';
 
 // Custom hook for debouncing
@@ -39,11 +40,20 @@ export const SearchPage: React.FC = () => {
     hasSearched: false
   });
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   
-  // Location services removed - search works without location data
+  // Geolocation hook for distance calculations
+  const geolocation = useGeolocation();
 
   // Debounce search input
   const debouncedSearchInput = useDebounce(searchInput, 300);
+
+  // Check if we should show location permission prompt
+  useEffect(() => {
+    if (geolocation.permission === 'prompt' && !geolocation.userLocation && !showLocationPrompt) {
+      setShowLocationPrompt(true);
+    }
+  }, [geolocation.permission, geolocation.userLocation, showLocationPrompt]);
 
   // Load recent searches from localStorage on component mount
   useEffect(() => {
@@ -85,7 +95,8 @@ export const SearchPage: React.FC = () => {
     }));
 
     try {
-      const results = await SearchService.searchItems(query, undefined);
+      // Include user location for distance calculations if available
+      const results = await SearchService.searchItems(query, geolocation.userLocation || undefined);
       
       setSearchState(prev => ({
         ...prev,
@@ -103,7 +114,7 @@ export const SearchPage: React.FC = () => {
         error: error instanceof Error ? error.message : 'Search failed'
       }));
     }
-  }, [saveToRecentSearches]);
+  }, [saveToRecentSearches, geolocation.userLocation]);
 
   // Handle debounced search
   useEffect(() => {
@@ -159,12 +170,23 @@ export const SearchPage: React.FC = () => {
 
   const handleRecentSearchClick = useCallback((query: string) => {
     setSearchInput(query);
-  }, []);
+    performSearch(query);
+  }, [performSearch]);
 
   const handleResultClick = useCallback((result: SearchResult) => {
     // Use the store request document ID for navigation, not the item's storeId
     navigate(`/item/${result.id}/store/${result.store.id}`);
   }, [navigate]);
+
+  // Handle location permission request
+  const handleLocationRequest = useCallback(async () => {
+    setShowLocationPrompt(false);
+    await geolocation.requestLocation();
+  }, [geolocation]);
+
+  const handleLocationDismiss = useCallback(() => {
+    setShowLocationPrompt(false);
+  }, []);
 
   // Location request handler removed
 
@@ -275,7 +297,82 @@ export const SearchPage: React.FC = () => {
             </div>
           )}
 
-          {/* Location Permission Banner removed - search works without location permissions */}
+          {/* Location Permission Banner for distance display */}
+          {showLocationPrompt && !searchInput.trim() && (
+            <div className="px-4 mb-6">
+              <div className="bg-gradient-to-br from-white to-blue-50 rounded-2xl p-5 shadow-lg border border-blue-100">
+                <div className="flex items-center mb-4">
+                  <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-2xl flex items-center justify-center mr-3">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  <h2 className="text-lg font-bold text-blue-800">Enable Location</h2>
+                </div>
+                <p className="text-sm text-blue-700 mb-5 font-medium">
+                  Get distance information to stores and find the closest options to you.
+                </p>
+                <div className="flex space-x-3">
+                  <button 
+                    onClick={handleLocationRequest}
+                    className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-3 px-4 rounded-2xl font-bold hover:from-blue-600 hover:to-indigo-600 transition-all transform hover:scale-105 flex items-center justify-center shadow-lg"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    Enable Location
+                  </button>
+                  <button 
+                    onClick={handleLocationDismiss}
+                    className="px-4 py-3 border border-blue-200 text-blue-700 rounded-2xl font-medium hover:bg-blue-50 transition-colors"
+                  >
+                    Skip
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Location Status Display */}
+          {geolocation.userLocation && !searchInput.trim() && (
+            <div className="px-4 mb-6">
+              <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-4 border border-green-100">
+                <div className="flex items-center text-green-700">
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="text-sm font-medium">
+                    Location enabled - you'll see distances to stores in search results
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Location Error Display */}
+          {geolocation.error && !searchInput.trim() && (
+            <div className="px-4 mb-6">
+              <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-4 border border-amber-100">
+                <div className="flex items-start">
+                  <svg className="w-5 h-5 text-amber-600 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-amber-800">Location unavailable</p>
+                    <p className="text-xs text-amber-700 mt-1">{geolocation.error}</p>
+                    <button 
+                      onClick={geolocation.requestLocation}
+                      className="text-xs text-amber-600 hover:text-amber-800 underline mt-1"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Search Results */}
           {searchState.query && (

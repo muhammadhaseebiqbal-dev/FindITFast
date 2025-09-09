@@ -460,12 +460,30 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
                           <label className="block text-sm font-semibold text-gray-900 mb-2">
                             Price
                           </label>
-                          <input
-                            type="text"
-                            value={newItem.price}
-                            onChange={(e) => setNewItem(prev => ({ ...prev, price: e.target.value }))}
-                            placeholder="e.g., 29.99"
-                            className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900 placeholder-gray-400"
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={newItem.price || '$'}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                let cleaned = value.replace(/[^\d.]/g, '');
+                                const parts = cleaned.split('.');
+                                if (parts.length > 2) {
+                                  cleaned = parts[0] + '.' + parts.slice(1).join('');
+                                }
+                                if (parts[1] && parts[1].length > 2) {
+                                  cleaned = parts[0] + '.' + parts[1].substring(0, 2);
+                                }
+                                const formattedValue = cleaned ? `$${cleaned}` : '$';
+                                setNewItem(prev => ({ ...prev, price: formattedValue }));
+                              }}
+                              placeholder="$0.00"
+                              className="w-full p-3 pr-12 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900 placeholder-gray-400"
+                            />
+                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                              <span className="text-gray-400 text-sm">AUD</span>
+                            </div>
+                          </div>
                           />
                         </div>
 

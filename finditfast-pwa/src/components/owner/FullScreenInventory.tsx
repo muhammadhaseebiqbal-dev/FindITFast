@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { ItemService, StorePlanService } from '../../services/firestoreService';
-import { fileToBase64, validateImageFile, compressImage } from '../../utilities/imageUtils';
+import { validateAndPrepareImage } from '../../utils/imageCompression';
+import { fileToBase64, validateImageFile } from '../../utilities/imageUtils';
 import { getStorePlanImageUrl } from '../../utils/storePlanCompatibility';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Store, Item, StorePlan } from '../../types';
@@ -18,6 +19,7 @@ interface NewItemForm {
   category: string;
   description: string;
   image: string | null;
+  imageFile: File | null;
   position: { x: number; y: number } | null;
   floorplanId: string | null;
 }
@@ -252,6 +254,7 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
       category: '',
       description: '',
       image: null,
+      imageFile: null,
       position: null,
       floorplanId: null
     });
@@ -286,13 +289,15 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
         return;
       }
 
-      // Compress the image
-      const compressedFile = await compressImage(file, 800, 800, 0.8);
+      // Convert to base64 for preview
+      const base64 = await fileToBase64(file);
       
-      // Convert to base64
-      const base64 = await fileToBase64(compressedFile);
-      
-      setNewItem(prev => ({ ...prev, image: base64 }));
+      // Store both preview and File object for later compression
+      setNewItem(prev => ({ 
+        ...prev, 
+        image: base64,
+        imageFile: file
+      }));
       
     } catch (error) {
       console.error('Error uploading image:', error);
@@ -335,12 +340,32 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
         storeId: store.id
       });
 
+      let imageUrl = '';
+      
+      // Process image if provided (compress and convert to base64)
+      if (newItem.image && newItem.imageFile) {
+        const itemValidation = await validateAndPrepareImage(newItem.imageFile, 'main');
+        
+        if (!itemValidation.isValid) {
+          throw new Error(`Item image processing failed: ${itemValidation.errors.join(', ')}`);
+        }
+        
+        console.log('🖼️ Item image compressed:', {
+          originalSize: `${(itemValidation.compressionResult.originalSize / 1024).toFixed(2)} KB`,
+          compressedSize: `${(itemValidation.compressionResult.compressedSize / 1024).toFixed(2)} KB`,
+          compressionRatio: `${itemValidation.compressionResult.compressionRatio.toFixed(1)}%`
+        });
+        
+        // Use base64 instead of Firebase Storage upload to avoid CORS issues
+        imageUrl = itemValidation.base64;
+      }
+
       const itemData = {
         name: newItem.name,
         price: newItem.price || undefined,
         category: newItem.category || undefined,
         description: newItem.description || undefined,
-        imageUrl: '', // Empty URL since we're not storing base64
+        imageUrl: imageUrl,
         storeId: store.id,
         floorplanId: newItem.floorplanId,
         position: newItem.position,
@@ -350,7 +375,7 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
         updatedAt: Timestamp.now(),
         reportCount: 0,
         // Metadata fields for Safari/iOS compatibility
-        hasImageData: !!newItem.image,
+        hasImageData: !!imageUrl,
         imageMimeType: newItem.image ? 'image/jpeg' : undefined,
         imageSize: newItem.image ? newItem.image.length : undefined,
       };
@@ -774,14 +799,30 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
                           <label className="block text-sm font-medium text-gray-700 mb-2">
                             Price
                           </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={newItem.price}
-                            onChange={(e) => setNewItem(prev => ({ ...prev, price: e.target.value }))}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            placeholder="0.00"
-                          />
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={newItem.price || '$'}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                let cleaned = value.replace(/[^\d.]/g, '');
+                                const parts = cleaned.split('.');
+                                if (parts.length > 2) {
+                                  cleaned = parts[0] + '.' + parts.slice(1).join('');
+                                }
+                                if (parts[1] && parts[1].length > 2) {
+                                  cleaned = parts[0] + '.' + parts[1].substring(0, 2);
+                                }
+                                const formattedValue = cleaned ? `$${cleaned}` : '$';
+                                setNewItem(prev => ({ ...prev, price: formattedValue }));
+                              }}
+                              className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                              placeholder="$0.00"
+                            />
+                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                              <span className="text-gray-400 text-sm">AUD</span>
+                            </div>
+                          </div>
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -832,7 +873,7 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
                               />
                               <button
                                 type="button"
-                                onClick={() => setNewItem(prev => ({ ...prev, image: null }))}
+                                onClick={() => setNewItem(prev => ({ ...prev, image: null, imageFile: null }))}
                                 className="text-red-600 hover:text-red-700 text-sm"
                               >
                                 Remove Image

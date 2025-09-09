@@ -22,6 +22,7 @@ interface ItemPosition {
 interface ItemFormData {
   name: string;
   price?: number;
+  priceDisplay: string; // For displaying formatted price with $
   itemImage: File | null;
   priceImage: File | null;
 }
@@ -38,6 +39,7 @@ export const ItemManager: React.FC<ItemManagerProps> = ({
   const [formData, setFormData] = useState<ItemFormData>({
     name: '',
     price: undefined,
+    priceDisplay: '$',
     itemImage: null,
     priceImage: null,
   });
@@ -104,10 +106,38 @@ export const ItemManager: React.FC<ItemManagerProps> = ({
 
   // Handle form input changes
   const handleInputChange = (field: keyof ItemFormData, value: string | number) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: field === 'price' ? (value === '' ? undefined : Number(value)) : value
-    }));
+    if (field === 'priceDisplay') {
+      // Handle price display formatting
+      const stringValue = String(value);
+      
+      // Remove all non-digit and non-decimal characters except for the first character if it's $
+      let cleaned = stringValue.replace(/[^\d.]/g, '');
+      
+      // Ensure only one decimal point
+      const parts = cleaned.split('.');
+      if (parts.length > 2) {
+        cleaned = parts[0] + '.' + parts.slice(1).join('');
+      }
+      
+      // Limit to 2 decimal places
+      if (parts[1] && parts[1].length > 2) {
+        cleaned = parts[0] + '.' + parts[1].substring(0, 2);
+      }
+      
+      // Format with $ sign
+      const formattedValue = cleaned ? `$${cleaned}` : '$';
+      
+      setFormData(prev => ({
+        ...prev,
+        priceDisplay: formattedValue,
+        price: cleaned ? Number(cleaned) : undefined
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [field]: field === 'price' ? (value === '' ? undefined : Number(value)) : value
+      }));
+    }
   };
 
   // Validate form data
@@ -221,6 +251,7 @@ export const ItemManager: React.FC<ItemManagerProps> = ({
     setFormData({
       name: '',
       price: undefined,
+      priceDisplay: '$',
       itemImage: null,
       priceImage: null,
     });
@@ -326,16 +357,19 @@ export const ItemManager: React.FC<ItemManagerProps> = ({
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Price (optional)
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.price || ''}
-                  onChange={(e) => handleInputChange('price', e.target.value)}
-                  placeholder="e.g., 4.99"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={isSubmitting}
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={formData.priceDisplay}
+                    onChange={(e) => handleInputChange('priceDisplay', e.target.value)}
+                    placeholder="$0.00"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    disabled={isSubmitting}
+                  />
+                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                    <span className="text-gray-400 text-sm">AUD</span>
+                  </div>
+                </div>
               </div>
 
               {/* Item Image Upload */}
