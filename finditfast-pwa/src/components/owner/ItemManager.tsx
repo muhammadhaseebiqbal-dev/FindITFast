@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { validateImageFile, compressImage, fileToBase64 } from '../../utilities/imageUtils';
+import { validateImageFile, fileToBase64 } from '../../utilities/imageUtils';
+import { validateAndPrepareImage } from '../../utils/imageCompression';
 import { ItemService } from '../../services/firestoreService';
 import { ItemStorageService } from '../../services/storageService';
 import { ItemVerificationService } from '../../services/itemVerificationService';
@@ -138,21 +139,39 @@ export const ItemManager: React.FC<ItemManagerProps> = ({
     setUploadProgress(0);
 
     try {
-      // Compress and upload item image
-      const compressedItemImage = await compressImage(formData.itemImage!, 800, 800, 0.7);
-      const itemImageUrl = await ItemStorageService.uploadItemImage(
-        compressedItemImage,
-        storeId,
-        (progress) => setUploadProgress(progress * 0.5) // First 50% of progress
-      );
+      // Compress and validate item image
+      const itemValidation = await validateAndPrepareImage(formData.itemImage!, 'main');
+      
+      if (!itemValidation.isValid) {
+        throw new Error(`Item image processing failed: ${itemValidation.errors.join(', ')}`);
+      }
+      
+      console.log('🖼️ Item image compressed:', {
+        originalSize: `${(itemValidation.compressionResult.originalSize / 1024).toFixed(2)} KB`,
+        compressedSize: `${(itemValidation.compressionResult.compressedSize / 1024).toFixed(2)} KB`,
+        compressionRatio: `${itemValidation.compressionResult.compressionRatio.toFixed(1)}%`
+      });
+      
+      setUploadProgress(50);
 
       let priceImageUrl: string | undefined;
       
       // Compress and upload price image if provided
       if (formData.priceImage) {
-        const compressedPriceImage = await compressImage(formData.priceImage, 800, 800, 0.7);
+        const priceValidation = await validateAndPrepareImage(formData.priceImage, 'thumbnail');
+        
+        if (!priceValidation.isValid) {
+          throw new Error(`Price image processing failed: ${priceValidation.errors.join(', ')}`);
+        }
+        
+        console.log('🏷️ Price image compressed:', {
+          originalSize: `${(priceValidation.compressionResult.originalSize / 1024).toFixed(2)} KB`,
+          compressedSize: `${(priceValidation.compressionResult.compressedSize / 1024).toFixed(2)} KB`,
+          compressionRatio: `${priceValidation.compressionResult.compressionRatio.toFixed(1)}%`
+        });
+        
         priceImageUrl = await ItemStorageService.uploadPriceImage(
-          compressedPriceImage,
+          priceValidation.compressionResult.compressedFile,
           storeId,
           (progress) => setUploadProgress(50 + progress * 0.5) // Second 50% of progress
         );
@@ -164,10 +183,10 @@ export const ItemManager: React.FC<ItemManagerProps> = ({
       const itemData: Omit<Item, 'id' | 'verified' | 'verifiedAt' | 'createdAt' | 'updatedAt'> = {
         name: formData.name.toLowerCase().trim(),
         storeId,
-        imageUrl: itemImageUrl,
+        imageUrl: itemValidation.base64, // Use compressed base64 instead of storage URL
         priceImageUrl,
         position: selectedPosition,
-        price: formData.price,
+        price: formData.price?.toString(),
         reportCount: 0,
       };
 
@@ -248,13 +267,13 @@ export const ItemManager: React.FC<ItemManagerProps> = ({
           />
           
           {/* Existing item pins */}
-          {existingItems.map((item) => (
+          {existingItems.filter(item => item.position).map((item) => (
             <div
               key={item.id}
               className="absolute w-4 h-4 bg-red-500 rounded-full border-2 border-white shadow-lg transform -translate-x-1/2 -translate-y-1/2 cursor-pointer hover:bg-red-600 transition-colors"
               style={{
-                left: `${item.position.x}%`,
-                top: `${item.position.y}%`,
+                left: `${item.position!.x}%`,
+                top: `${item.position!.y}%`,
               }}
               title={item.name}
             />

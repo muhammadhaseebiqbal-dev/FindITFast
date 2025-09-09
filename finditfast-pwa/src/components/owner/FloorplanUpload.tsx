@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { validateImageFile, fileToBase64, compressImage } from '../../utilities/imageUtils';
+import { validateImageFile, fileToBase64 } from '../../utilities/imageUtils';
+import { validateAndPrepareImage } from '../../utils/imageCompression';
 import { StorePlanService, StoreService, StoreOwnerService, FirestoreService } from '../../services/firestoreService';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -129,12 +130,20 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
 
       // Convert image to base64 format (with compression)
       setUploadProgress(25);
-      console.log('🖼️ Compressing image...');
-      const compressedFile = await compressImage(selectedFile, 1200, 1200, 0.8);
+      console.log('🖼️ Compressing and validating image...');
+      const validation = await validateAndPrepareImage(selectedFile, 'main');
+      
+      if (!validation.isValid) {
+        throw new Error(`Image processing failed: ${validation.errors.join(', ')}`);
+      }
       
       setUploadProgress(50);
-      console.log('📄 Converting to base64...');
-      const base64Data = await fileToBase64(compressedFile);
+      console.log('📄 Image compressed successfully:', {
+        originalSize: `${(validation.compressionResult.originalSize / 1024).toFixed(2)} KB`,
+        compressedSize: `${(validation.compressionResult.compressedSize / 1024).toFixed(2)} KB`,
+        compressionRatio: `${validation.compressionResult.compressionRatio.toFixed(1)}%`
+      });
+      const base64Data = validation.base64;
       
       setUploadProgress(75);
       console.log('📋 Getting existing store plans...');
