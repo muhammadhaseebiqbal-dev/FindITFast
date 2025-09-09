@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { validateImageFile, fileToBase64, compressImage } from '../../utilities/imageUtils';
-import { StorePlanService } from '../../services/firestoreService';
+import { StorePlanService, StoreService, StoreOwnerService, FirestoreService } from '../../services/firestoreService';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface FloorplanUploadProps {
@@ -76,7 +76,52 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
       }
 
       if (!ownerProfile) {
-        throw new Error('Store owner profile not found. Please try logging in again.');
+        console.log('⚠️ FloorplanUpload: No owner profile found, attempting auto-creation...');
+        setUploadProgress(5);
+        
+        try {
+          // Query storeRequests collection directly for approved requests by this user
+          const { collection, query, where, getDocs } = await import('firebase/firestore');
+          const { db } = await import('../../services/firebase');
+          
+          const storeRequestsRef = collection(db, 'storeRequests');
+          const q = query(
+            storeRequestsRef, 
+            where('requestedBy', '==', user.email),
+            where('status', '==', 'approved')
+          );
+          
+          const querySnapshot = await getDocs(q);
+          
+          if (!querySnapshot.empty) {
+            const userApprovedRequest = querySnapshot.docs[0].data();
+            console.log('✨ FloorplanUpload: Found approved store request, creating owner profile...');
+            
+            const newOwnerProfile = {
+              name: userApprovedRequest.ownerName || user.displayName || 'Store Owner',
+              email: user.email!,
+              phone: userApprovedRequest.ownerEmail || '',
+              firebaseUid: user.uid,
+              storeId: userApprovedRequest.storeId || querySnapshot.docs[0].id,
+              storeName: userApprovedRequest.storeName,
+              createdAt: new Date() as any,
+            };
+
+            await StoreOwnerService.create(newOwnerProfile);
+            console.log('✅ FloorplanUpload: Owner profile created successfully');
+            
+            // Refresh the auth context
+            const { refreshOwnerProfile } = useAuth();
+            await refreshOwnerProfile();
+            
+            console.log('✅ FloorplanUpload: Owner profile auto-created and refreshed');
+          } else {
+            throw new Error('No approved store request found. Please ensure your store request has been approved first.');
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          throw new Error(`Store owner profile not found. ${errorMessage} If your store was recently approved, please log out and back in.`);
+        }
       }
 
       console.log('� Starting floorplan upload for user:', user.email, user.uid);
@@ -189,6 +234,16 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
       <h3 className="text-lg font-medium text-gray-900 mb-4">
         Store Floorplan
       </h3>
+
+      {/* Debug Info - Remove this in production */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mb-4 p-3 bg-gray-100 rounded text-xs">
+          <p><strong>Debug Info:</strong></p>
+          <p>User: {user ? `${user.email} (${user.uid})` : 'Not logged in'}</p>
+          <p>Owner Profile: {ownerProfile ? `${ownerProfile.id} (${ownerProfile.email})` : 'Not found'}</p>
+          <p>Store ID: {storeId}</p>
+        </div>
+      )}
 
       {/* Current Floorplan Display */}
       {currentFloorplanUrl && !previewUrl && (

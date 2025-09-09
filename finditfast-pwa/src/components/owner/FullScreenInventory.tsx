@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { ItemService, StorePlanService } from '../../services/firestoreService';
-import { fileToBase64, validateImageFile, compressImage, normalizeBase64DataUrl } from '../../utilities/imageUtils';
+import { fileToBase64, validateImageFile, compressImage } from '../../utilities/imageUtils';
+import { getStorePlanImageUrl } from '../../utils/storePlanCompatibility';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Store, Item, StorePlan } from '../../types';
 
@@ -339,7 +340,7 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
         price: newItem.price || undefined,
         category: newItem.category || undefined,
         description: newItem.description || undefined,
-        imageUrl: newItem.image || undefined,
+        imageUrl: '', // Empty URL since we're not storing base64
         storeId: store.id,
         floorplanId: newItem.floorplanId,
         position: newItem.position,
@@ -347,7 +348,11 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
         verifiedAt: Timestamp.now(),
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
-        reportCount: 0
+        reportCount: 0,
+        // Metadata fields for Safari/iOS compatibility
+        hasImageData: !!newItem.image,
+        imageMimeType: newItem.image ? 'image/jpeg' : undefined,
+        imageSize: newItem.image ? newItem.image.length : undefined,
       };
 
       console.log('Creating item with data:', itemData);
@@ -630,7 +635,7 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
                         >
                           <img
                             ref={floorplanRef}
-                            src={normalizeBase64DataUrl(activeStorePlan.base64, activeStorePlan.type)}
+                            src={getStorePlanImageUrl(activeStorePlan)}
                             alt={`${store.name} floorplan`}
                             className="max-w-full max-h-[calc(100vh-200px)] transition-transform duration-200"
                             onClick={handleFloorplanClick}

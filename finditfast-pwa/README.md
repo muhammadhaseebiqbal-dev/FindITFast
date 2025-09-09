@@ -284,7 +284,24 @@ VITE_FIREBASE_PROJECT_ID=finditfastapp
 VITE_FIREBASE_STORAGE_BUCKET=finditfastapp.firebasestorage.app
 VITE_FIREBASE_MESSAGING_SENDER_ID=120028303360
 VITE_FIREBASE_APP_ID=1:120028303360:web:446a06f68b93c7cd2c88e5
+
+# Google Maps API Configuration
+VITE_GOOGLE_MAPS_API_KEY=AIzaSyCsIptYZldF6V4MQI0bMm_bK64doLW1Mmk
 ```
+
+### Google Maps API Setup
+The app uses Google Maps API for geocoding (converting addresses to coordinates). The same Firebase API key is used for Google Maps services.
+
+**To enable geocoding:**
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Enable the **Geocoding API** for your project
+3. The API key is already configured in the environment variables
+
+**Features using Google Maps:**
+- ✅ Address validation when creating store requests
+- ✅ Converting store addresses to map coordinates
+- ✅ Generating directions links for customers
+- ✅ Location-based search functionality
 
 ### Local Development Setup
 1. **Clone the repository**:

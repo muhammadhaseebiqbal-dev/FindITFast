@@ -6,7 +6,7 @@ import { StorePlanService } from '../../services/firestoreService';
 import { FloorplanUpload } from './FloorplanUpload';
 import { InventoryManager } from './InventoryManager';
 import { ensureStoreOwnerRecord } from '../../utilities/storeOwnerUtils';
-import { normalizeBase64DataUrl } from '../../utilities/imageUtils';
+import { getStorePlanImageUrl } from '../../utils/storePlanCompatibility';
 import type { Store, StorePlan } from '../../types';
 
 interface ApprovedStoreRequest {
@@ -290,10 +290,11 @@ export const FloorplanManager: React.FC = () => {
                         if (storeStorePlans.length > 0) {
                           // Use active floorplan or the most recent one
                           const activeFloorplan = storeStorePlans.find(fp => fp.isActive) || storeStorePlans[storeStorePlans.length - 1];
-                          floorplanUrl = activeFloorplan.base64;
+                          floorplanUrl = getStorePlanImageUrl(activeFloorplan);
                           floorplanName = activeFloorplan.name;
                         } else if (store?.floorplanData) {
-                          floorplanUrl = store.floorplanData.base64;
+                          // Legacy store floorplan data
+                          floorplanUrl = (store.floorplanData as any).base64 || '';
                           floorplanName = store.floorplanData.name;
                         } else if (store?.floorplanUrl) {
                           floorplanUrl = store.floorplanUrl;
@@ -389,7 +390,7 @@ export const FloorplanManager: React.FC = () => {
                               <div className="flex items-start space-x-3">
                                 {/* Floorplan Thumbnail */}
                                 <img
-                                  src={normalizeBase64DataUrl(floorplan.base64, floorplan.type)}
+                                  src={getStorePlanImageUrl(floorplan)}
                                   alt={floorplan.name}
                                   className={`w-16 h-16 object-cover rounded border cursor-pointer hover:opacity-75 transition-opacity ${floorplan.isActive ? 'border-blue-300' : 'border-gray-300'}`}
                                   onClick={(e) => {
@@ -401,7 +402,7 @@ export const FloorplanManager: React.FC = () => {
                                         <html>
                                           <head><title>${floorplan.name}</title></head>
                                           <body style="margin:0; display:flex; justify-content:center; align-items:center; min-height:100vh; background:#f0f0f0;">
-                                            <img src="${normalizeBase64DataUrl(floorplan.base64, floorplan.type)}" alt="${floorplan.name}" style="max-width:100%; max-height:100%; object-fit:contain;" />
+                                            <img src="${getStorePlanImageUrl(floorplan)}" alt="${floorplan.name}" style="max-width:100%; max-height:100%; object-fit:contain;" />
                                           </body>
                                         </html>
                                       `);

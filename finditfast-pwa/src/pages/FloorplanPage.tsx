@@ -22,10 +22,11 @@ export const FloorplanPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Get the item ID from URL params if provided
+  // Get the item ID and mode from URL params if provided
   const itemIdFromUrl = searchParams.get('itemId');
+  const mode = searchParams.get('mode'); // 'relocate' mode for item relocation
   
-  console.log('🔗 FloorplanPage: URL params:', { storeId, itemIdFromUrl });
+  console.log('🔗 FloorplanPage: URL params:', { storeId, itemIdFromUrl, mode });
 
   useEffect(() => {
     const loadStoreAndItems = async () => {
@@ -39,13 +40,122 @@ export const FloorplanPage: React.FC = () => {
         setIsLoading(true);
         setError(null);
         
-        // Load store data
-        const storeData = await firestoreService.getStore(storeId);
+        // Load store data - try multiple collections
+        console.log('🏪 FloorplanPage: Attempting to load store with ID:', storeId);
+        
+        // Try storeRequests collection first (current implementation)
+        let storeData = await firestoreService.getStore(storeId);
+        console.log('🏪 FloorplanPage: Store data from storeRequests:', storeData);
+        console.log('🏪 FloorplanPage: Store properties:', Object.keys(storeData || {}));
+        const storeDataAny = storeData as any;
+        console.log('🏪 FloorplanPage: Store name fields:', {
+          name: storeData?.name,
+          storeName: storeDataAny?.storeName,
+          ownerName: storeDataAny?.ownerName
+        });
+        console.log('🏪 FloorplanPage: Store floorplan fields:', {
+          floorplanUrl: storeData?.floorplanUrl,
+          floorPlanUrl: storeDataAny?.floorPlanUrl,
+          imageUrl: storeDataAny?.imageUrl
+        });
+        
+        // If not found in storeRequests, try stores collection
+        if (!storeData) {
+          try {
+            const { getDoc, doc } = await import('firebase/firestore');
+            const { db } = await import('../services/firebase');
+            const storeDocRef = doc(db, 'stores', storeId);
+            const storeSnapshot = await getDoc(storeDocRef);
+            
+            if (storeSnapshot.exists()) {
+              storeData = { id: storeSnapshot.id, ...storeSnapshot.data() } as Store;
+              console.log('🏪 FloorplanPage: Store data from stores collection:', storeData);
+            }
+          } catch (error) {
+            console.error('Error loading from stores collection:', error);
+          }
+        }
+        
         if (!storeData) {
           setError('Store not found');
           return;
         }
-        setStore(storeData);
+        
+        // Check for active floorplan from storePlans collection
+        let floorplanUrl = storeData.floorplanUrl || (storeData as any).floorPlanUrl;
+        
+        // If no direct floorplanUrl, check storePlans collection
+        if (!floorplanUrl) {
+          try {
+            const { StorePlanService } = await import('../services/firestoreService');
+            
+            // Try multiple store ID variations including prefixes
+            const storeIdVariations = [storeId, `temp_${storeId}`, `virtual_${storeId}`];
+            let activeStorePlans: any[] = [];
+            
+            console.log('🔍 FloorplanPage: Trying store ID variations:', storeIdVariations);
+            
+            for (const storeIdVariant of storeIdVariations) {
+              console.log('🔍 FloorplanPage: Checking storeId variant:', storeIdVariant);
+              activeStorePlans = await StorePlanService.getActiveByStore(storeIdVariant);
+              if (activeStorePlans.length > 0) {
+                console.log('✅ FloorplanPage: Found active store plans for:', storeIdVariant);
+                break;
+              }
+            }
+            
+            console.log('🏪 FloorplanPage: Active store plans found:', activeStorePlans.length);
+            
+            if (activeStorePlans.length > 0) {
+              const activePlan = activeStorePlans[0];
+              console.log('🏪 FloorplanPage: Active plan data:', {
+                id: activePlan.id,
+                hasImageData: activePlan.hasImageData,
+                fileName: activePlan.fileName
+              });
+              
+              // Check if base64 data is available directly in the document
+              if (activePlan.base64) {
+                floorplanUrl = `data:${activePlan.type || 'image/jpeg'};base64,${activePlan.base64}`;
+                console.log('🏪 FloorplanPage: Created floorplan URL from base64 data');
+              } else if (activePlan.hasImageData) {
+                // Fallback to storage if base64 is not available
+                const { getStorage, ref, getDownloadURL } = await import('firebase/storage');
+                const storage = getStorage();
+                const imageRef = ref(storage, `storePlans/${activePlan.id}/${activePlan.fileName}`);
+                
+                try {
+                  floorplanUrl = await getDownloadURL(imageRef);
+                  console.log('🏪 FloorplanPage: Got floorplan URL from storage:', floorplanUrl);
+                } catch (storageError) {
+                  console.error('🏪 FloorplanPage: Failed to get floorplan from storage:', storageError);
+                }
+              }
+            }
+          } catch (error) {
+            console.error('🏪 FloorplanPage: Failed to load store plans:', error);
+          }
+        }
+        
+        // Map storeRequest properties to Store interface if needed
+        const mappedStore: Store = {
+          id: storeData.id,
+          name: (storeData as any).storeName || (storeData as any).name || 'Unnamed Store',
+          address: storeData.address || 'No address',
+          location: storeData.location || { latitude: 0, longitude: 0 },
+          floorplanUrl: floorplanUrl,
+          ownerId: storeData.ownerId || (storeData as any).ownerEmail || '',
+          createdAt: storeData.createdAt,
+          updatedAt: storeData.updatedAt
+        };
+        
+        console.log('🏪 FloorplanPage: Final mapped store:', {
+          id: mappedStore.id,
+          name: mappedStore.name,
+          hasFloorplanUrl: !!mappedStore.floorplanUrl,
+          floorplanUrl: mappedStore.floorplanUrl
+        });
+        setStore(mappedStore);
 
         // Load items for this store
         const storeItems = await firestoreService.getStoreItems(storeId);
@@ -81,6 +191,11 @@ export const FloorplanPage: React.FC = () => {
   };
 
   const handleItemSelect = (item: Item) => {
+    // In relocate mode, don't allow selecting different items
+    if (mode === 'relocate') {
+      return;
+    }
+    
     // Toggle selection - if same item is clicked, deselect it
     if (selectedItemId === item.id) {
       setSelectedItemId(undefined);
@@ -94,6 +209,32 @@ export const FloorplanPage: React.FC = () => {
       const newSearchParams = new URLSearchParams(searchParams);
       newSearchParams.set('itemId', item.id);
       navigate({ search: newSearchParams.toString() }, { replace: true });
+    }
+  };
+
+  // Handle location selection for relocate mode
+  const handleLocationSelect = async (position: { x: number; y: number }) => {
+    if (mode === 'relocate' && itemIdFromUrl) {
+      try {
+        // Update the item's position in Firestore
+        const { ItemService } = await import('../services/firestoreService');
+        const { Timestamp } = await import('firebase/firestore');
+        await ItemService.update(itemIdFromUrl, {
+          position: position,
+          updatedAt: Timestamp.now()
+        });
+        
+        console.log('🎯 Item location updated:', { itemId: itemIdFromUrl, newPosition: position });
+        
+        // Show success message
+        alert('Item location updated successfully!');
+        
+        // Navigate back to the report page
+        navigate(-1);
+      } catch (error) {
+        console.error('Failed to update item location:', error);
+        alert('Failed to update location. Please try again.');
+      }
     }
   };
 
@@ -199,6 +340,8 @@ export const FloorplanPage: React.FC = () => {
                 items={items}
                 selectedItemId={selectedItemId}
                 onItemSelect={handleItemSelect}
+                onLocationSelect={mode === 'relocate' ? handleLocationSelect : undefined}
+                mode={mode || undefined}
                 className="rounded-2xl overflow-hidden shadow-lg"
               />
             );

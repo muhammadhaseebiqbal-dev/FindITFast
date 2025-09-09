@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { normalizeBase64DataUrl } from '../../utilities/imageUtils';
+import { getStorePlanImageUrl } from '../../utils/storePlanCompatibility';
 import type { SearchResult } from '../../types/search';
 import type { StorePlan } from '../../types';
 
@@ -74,7 +74,7 @@ export const ItemLocationViewer: React.FC<ItemLocationViewerProps> = ({
                 
                 {!imageError ? (
                   <img
-                    src={normalizeBase64DataUrl(storePlan.base64, storePlan.type)}
+                    src={getStorePlanImageUrl(storePlan)}
                     alt="Store floorplan"
                     className="w-full h-full object-contain cursor-zoom-in"
                     onLoad={handleImageLoad}

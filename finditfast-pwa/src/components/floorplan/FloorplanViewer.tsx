@@ -10,6 +10,8 @@ interface FloorplanViewerProps {
   items: Item[];
   selectedItemId?: string;
   onItemSelect?: (item: Item) => void;
+  onLocationSelect?: (position: { x: number; y: number }) => void;
+  mode?: string; // 'relocate' mode for item repositioning
   className?: string;
 }
 
@@ -18,6 +20,8 @@ export const FloorplanViewer: React.FC<FloorplanViewerProps> = ({
   items,
   selectedItemId,
   onItemSelect,
+  onLocationSelect,
+  mode,
   className = ''
 }) => {
   const [isImageLoaded, setIsImageLoaded] = useState(false);
@@ -41,6 +45,17 @@ export const FloorplanViewer: React.FC<FloorplanViewerProps> = ({
     onItemSelect?.(item);
   };
 
+  const handleFloorplanClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (mode === 'relocate' && onLocationSelect && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const x = ((event.clientX - rect.left) / rect.width) * 100;
+      const y = ((event.clientY - rect.top) / rect.height) * 100;
+      
+      console.log('🎯 Floorplan clicked for relocate:', { x, y });
+      onLocationSelect({ x, y });
+    }
+  };
+
   // Filter items that belong to this store (handle prefix mismatches)
   const storeItems = items.filter(item => {
     if (!item.storeId) return false;
@@ -57,9 +72,13 @@ export const FloorplanViewer: React.FC<FloorplanViewerProps> = ({
 
   console.log('🗺️ FloorplanViewer Debug:', {
     storeId: store.id,
+    storeName: store.name,
+    storeFloorplanUrl: store.floorplanUrl,
+    hasFloorplanUrl: !!store.floorplanUrl,
     totalItems: items.length,
     filteredStoreItems: storeItems.length,
     selectedItemId,
+    imageLoadState: { isImageLoaded, imageError },
     itemsWithStoreIds: items.map(item => ({ 
       id: item.id, 
       name: item.name, 
@@ -105,10 +124,24 @@ export const FloorplanViewer: React.FC<FloorplanViewerProps> = ({
 
   return (
     <div className={`relative ${className}`}>
+      {/* Relocate Mode Instructions */}
+      {mode === 'relocate' && (
+        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">!</div>
+            <div>
+              <h3 className="font-semibold text-blue-900">Select New Location</h3>
+              <p className="text-sm text-blue-700">The current item location is blinking. Tap anywhere on the floorplan to move it to a new location.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Floorplan Container */}
       <div 
         ref={containerRef}
-        className="relative w-full aspect-[4/3] min-h-64 max-h-96"
+        className={`relative w-full aspect-[4/3] min-h-64 max-h-96 ${mode === 'relocate' ? 'cursor-crosshair' : ''}`}
+        onClick={handleFloorplanClick}
       >
         <FloorplanImage
           src={store.floorplanUrl}
@@ -133,6 +166,7 @@ export const FloorplanViewer: React.FC<FloorplanViewerProps> = ({
                       onClick={handleItemClick}
                       isSelected={item.id === selectedItemId}
                       allowInteraction={canEditStoreItems(store.id) || isUser}
+                      isBlinking={mode === 'relocate' && item.id === selectedItemId}
                     />
                   );
                 })}

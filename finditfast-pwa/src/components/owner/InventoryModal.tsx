@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { ItemService } from '../../services/firestoreService';
-import { fileToBase64, validateImageFile, compressImage, normalizeBase64DataUrl } from '../../utilities/imageUtils';
+import { fileToBase64, validateImageFile, compressImage } from '../../utilities/imageUtils';
+import { getStorePlanImageUrl } from '../../utils/storePlanCompatibility';
 import type { Store, StorePlan, Item } from '../../types';
 
 interface InventoryModalProps {
@@ -140,12 +141,12 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
         throw new Error('Item image is required');
       }
 
-      // Create item data
+      // Create item data with metadata instead of base64 for Safari/iOS compatibility
       const itemData = {
         name: newItem.name.trim(),
         price: newItem.price.trim() || null,
-        imageUrl: newItem.itemImage, // Store as base64 in imageUrl field
-        priceImageUrl: newItem.priceImage,
+        imageUrl: '', // Empty URL since we're not storing base64
+        priceImageUrl: newItem.priceImage ? '' : undefined, // Empty URL if price image exists
         storeId: store.id,
         floorplanId: storePlan.id,
         position: {
@@ -153,10 +154,17 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
           y: newItem.y
         },
         verified: true,
-        verifiedAt: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        reportCount: 0
+        verifiedAt: new Date() as any,
+        createdAt: new Date() as any,
+        updatedAt: new Date() as any,
+        reportCount: 0,
+        // Metadata fields for Safari/iOS compatibility
+        hasImageData: !!newItem.itemImage,
+        imageMimeType: newItem.itemImage ? 'image/jpeg' : undefined, // Assume JPEG for now
+        imageSize: newItem.itemImage ? newItem.itemImage.length : undefined,
+        hasPriceImage: !!newItem.priceImage,
+        priceImageMimeType: newItem.priceImage ? 'image/jpeg' : undefined,
+        priceImageSize: newItem.priceImage ? newItem.priceImage.length : undefined,
       };
 
       // Save to Firestore
@@ -254,7 +262,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
               <div className="relative bg-gray-100 rounded-xl overflow-hidden">
                 <img
                   ref={floorplanRef}
-                  src={normalizeBase64DataUrl(storePlan.base64, storePlan.type)}
+                  src={getStorePlanImageUrl(storePlan)}
                   alt={`${store.name} floorplan`}
                   className="w-full h-auto cursor-crosshair"
                   onClick={handleFloorplanClick}

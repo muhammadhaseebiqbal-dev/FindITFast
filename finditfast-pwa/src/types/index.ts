@@ -29,12 +29,15 @@ export interface StorePlan {
   name: string;
   type: string;
   size: number;
-  base64: string;
+  // base64: string; // Removed to avoid Safari/iOS Firestore size limitations
   uploadedAt: Timestamp;
   originalSize: number;
   isActive: boolean;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  // Metadata fields instead of storing base64 data
+  hasImageData: boolean;
+  fileName: string;
 }
 
 export interface Item {
@@ -44,7 +47,7 @@ export interface Item {
   description?: string; // Optional item description
   storeId: string;
   floorplanId?: string; // Which floorplan this item belongs to
-  imageUrl: string;
+  imageUrl: string; // Changed to store placeholder/metadata instead of base64
   priceImageUrl?: string;
   position?: {
     x: number;
@@ -56,6 +59,13 @@ export interface Item {
   createdAt: Timestamp;
   updatedAt: Timestamp;
   reportCount: number;
+  // Metadata fields for Safari/iOS compatibility
+  hasImageData?: boolean;
+  imageMimeType?: string;
+  imageSize?: number;
+  hasPriceImage?: boolean;
+  priceImageMimeType?: string;
+  priceImageSize?: number;
 }
 
 export interface StoreOwner {

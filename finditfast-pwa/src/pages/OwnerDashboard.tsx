@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { FloorplanManager, OwnerStoreManager, EnhancedInventoryManager } from '../components/owner';
-import { ReportsList } from '../components/reports/ReportsList';
-import { UserRequestsList } from '../components/reports/UserRequestsList';
 import { StoreService, ItemService } from '../services/firestoreService';
 import { collection, query, where, getDocs, onSnapshot, addDoc, serverTimestamp, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -39,8 +37,8 @@ export const OwnerDashboard: React.FC = () => {
       name: string;
       type: string;
       size: number;
-      base64: string;
       uploadedAt: Date;
+      hasContent: boolean;
     }>
   });
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
@@ -93,15 +91,6 @@ export const OwnerDashboard: React.FC = () => {
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-        </svg>
-      )
-    },
-    { 
-      id: 'reports', 
-      label: 'Reports', 
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
         </svg>
       )
     }
@@ -254,7 +243,7 @@ export const OwnerDashboard: React.FC = () => {
     }));
   };
 
-  // Handle file upload with base64 conversion
+  // Handle file upload - store only metadata to avoid Safari/iOS Firestore issues
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files) return;
@@ -264,12 +253,12 @@ export const OwnerDashboard: React.FC = () => {
     try {
       const newFiles = Array.from(files);
       
-      // Validate file size (max 5MB per file for base64 storage)
-      const maxSize = 5 * 1024 * 1024; // 5MB (smaller for base64 storage)
+      // Validate file size (max 10MB per file)
+      const maxSize = 10 * 1024 * 1024; // 10MB
       const oversizedFiles = newFiles.filter(file => file.size > maxSize);
       
       if (oversizedFiles.length > 0) {
-        setError(`File(s) too large: ${oversizedFiles.map(f => f.name).join(', ')}. Maximum size is 5MB per file for database storage.`);
+        setError(`File(s) too large: ${oversizedFiles.map(f => f.name).join(', ')}. Maximum size is 10MB per file.`);
         setTimeout(() => setError(null), 5000);
         setIsUploadingFiles(false);
         return;
@@ -289,42 +278,20 @@ export const OwnerDashboard: React.FC = () => {
         return;
       }
 
-      // Convert files to base64
-      const base64Files = await Promise.all(
-        newFiles.map(async (file) => {
-          return new Promise<{
-            name: string;
-            type: string;
-            size: number;
-            base64: string;
-            uploadedAt: Date;
-          }>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-              if (typeof reader.result === 'string') {
-                resolve({
-                  name: file.name,
-                  type: file.type,
-                  size: file.size,
-                  base64: reader.result, // This includes the data:type;base64, prefix
-                  uploadedAt: new Date()
-                });
-              } else {
-                reject(new Error('Failed to read file as base64'));
-              }
-            };
-            reader.onerror = () => reject(new Error('Failed to read file'));
-            reader.readAsDataURL(file);
-          });
-        })
-      );
-      
+      // Store only file metadata to avoid Safari/iOS Firestore size issues
+      const fileMetadata = newFiles.map(file => ({
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        uploadedAt: new Date(),
+        // Note: Actual file content not stored in Firestore to avoid size limitations
+        hasContent: true
+      }));
+
       setFormData(prev => ({
         ...prev,
-        documents: [...prev.documents, ...base64Files]
-      }));
-      
-      setUploadSuccess(`${newFiles.length} file(s) converted and stored successfully`);
+        documents: [...prev.documents, ...fileMetadata]
+      }));      setUploadSuccess(`${newFiles.length} file(s) converted and stored successfully`);
       setTimeout(() => setUploadSuccess(null), 3000);
       
       // Reset file input
@@ -411,15 +378,16 @@ export const OwnerDashboard: React.FC = () => {
         status: 'pending',
         submittedAt: serverTimestamp(),
         // Store both original address and geocoded location data
-        address: formData.address,
         formattedAddress: geocodingResult.formattedAddress,
         location: {
           latitude: geocodingResult.latitude,
           longitude: geocodingResult.longitude,
           address: geocodingResult.formattedAddress
         },
-        documents: formData.documents, // Store the base64 documents directly
+        // Store only document metadata to avoid Safari/iOS Firestore size issues
         documentsCount: formData.documents.length,
+        documentNames: formData.documents.map(doc => doc.name),
+        hasDocuments: formData.documents.length > 0,
         createdAt: new Date().toISOString()
       };
 
@@ -1176,28 +1144,6 @@ export const OwnerDashboard: React.FC = () => {
           {activeTab === 'inventory' && (
             <div className="bg-gray-50 min-h-screen">
               <EnhancedInventoryManager />
-            </div>
-          )}
-
-          {activeTab === 'reports' && (
-            <div className="space-y-6 animate-fade-in">
-              {/* Customer Reports */}
-              <div className="bg-white rounded-xl p-6 shadow-sm">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Customer Reports</h2>
-                {user?.uid ? (
-                  <ReportsList storeOwnerId={user.uid} />
-                ) : ownerProfile?.id ? (
-                  <ReportsList storeOwnerId={ownerProfile.id} />
-                ) : (
-                  <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                    <p className="text-gray-600">Loading owner profile...</p>
-                  </div>
-                )}
-              </div>
-
-              {/* User Requests */}
-              <UserRequestsList />
             </div>
           )}
           </div>

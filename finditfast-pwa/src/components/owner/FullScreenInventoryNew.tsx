@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { ItemService, StorePlanService } from '../../services/firestoreService';
-import { fileToBase64, validateImageFile, compressImage, normalizeBase64DataUrl } from '../../utilities/imageUtils';
+import { fileToBase64, validateImageFile, compressImage } from '../../utilities/imageUtils';
+import { getStorePlanImageUrl } from '../../utils/storePlanCompatibility';
 import type { Store, Item, StorePlan } from '../../types';
 
 interface FullScreenInventoryProps {
@@ -390,7 +391,7 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
                     <div className="relative inline-block border border-gray-300 rounded-lg overflow-hidden shadow-lg bg-white">
                       <img
                         ref={floorplanRef}
-                        src={normalizeBase64DataUrl(activeStorePlan.base64, activeStorePlan.type)}
+                        src={getStorePlanImageUrl(activeStorePlan)}
                         alt={`${store.name} floorplan`}
                         className="max-w-full max-h-[calc(100vh-200px)] cursor-crosshair"
                         onClick={handleFloorplanClick}

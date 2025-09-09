@@ -94,6 +94,9 @@ export const StoreRequestManager: React.FC = () => {
         documents: request.documents,
         storeName: request.storeName
       });
+    } else if (request.documentNames && request.documentNames.length > 0) {
+      // For new metadata-only structure, show information that documents were uploaded
+      alert(`${request.documentsCount} document(s) were uploaded with this request: ${request.documentNames.join(', ')}\n\nNote: Document viewing is only available for requests with the full document data.`);
     } else {
       alert('No documents available for this request.');
     }
@@ -207,25 +210,37 @@ export const StoreRequestManager: React.FC = () => {
                     )}
                     
                     {/* Documents Section */}
-                    {(request as any).documents && (request as any).documents.length > 0 && (
+                    {((request as any).documentsCount > 0 || ((request as any).documents && (request as any).documents.length > 0)) && (
                       <div className="mb-4">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm font-medium text-gray-700">
-                            📎 Documents ({(request as any).documents.length})
+                            📎 Documents ({(request as any).documentsCount || (request as any).documents?.length || 0})
                           </span>
-                          <button
-                            onClick={() => handleViewDocuments(request)}
-                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                          >
-                            View Documents
-                          </button>
+                          {(request as any).documents && (request as any).documents.length > 0 && (
+                            <button
+                              onClick={() => handleViewDocuments(request)}
+                              className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                            >
+                              View Documents
+                            </button>
+                          )}
                         </div>
                         <div className="text-xs text-gray-500">
-                          {(request as any).documents.map((doc: any, index: number) => (
-                            <span key={index} className="inline-block mr-2 mb-1 px-2 py-1 bg-blue-100 text-blue-800 rounded">
-                              {doc.name}
-                            </span>
-                          ))}
+                          {/* Show document names from new metadata structure */}
+                          {(request as any).documentNames ? (
+                            (request as any).documentNames.map((name: string, index: number) => (
+                              <span key={index} className="inline-block mr-2 mb-1 px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                                {name}
+                              </span>
+                            ))
+                          ) : (
+                            /* Fallback for old structure */
+                            (request as any).documents?.map((doc: any, index: number) => (
+                              <span key={index} className="inline-block mr-2 mb-1 px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                                {doc.name}
+                              </span>
+                            ))
+                          )}
                         </div>
                       </div>
                     )}

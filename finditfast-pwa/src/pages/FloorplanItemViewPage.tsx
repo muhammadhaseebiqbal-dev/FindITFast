@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { StorePlanService, ItemService, StoreService } from '../services/firestoreService';
 import { MobileLayout, MobileContent, MobileHeader } from '../components/common/MobileLayout';
-import { normalizeBase64DataUrl } from '../utilities/imageUtils';
+import { getStorePlanImageUrl } from '../utils/storePlanCompatibility';
 import type { StorePlan, Item, Store } from '../types';
 
 export const FloorplanItemViewPage: React.FC = () => {
@@ -66,7 +66,7 @@ export const FloorplanItemViewPage: React.FC = () => {
         
         if (!activePlan) {
           console.error('❌ No active floorplan found for store:', storeId);
-          setError('No floorplan available for this store');
+          setError('This store does not have a floorplan available for viewing. Please contact the store for assistance.');
           setIsLoading(false);
           return;
         }
@@ -99,7 +99,16 @@ export const FloorplanItemViewPage: React.FC = () => {
 
       } catch (err) {
         console.error('Error loading floorplan data:', err);
-        setError('Failed to load store floorplan');
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load store floorplan';
+        
+        // Handle specific error cases
+        if (errorMessage.includes('Store owner profile not found')) {
+          setError('This store floorplan is not available for public viewing. Please contact the store for assistance.');
+        } else if (errorMessage.includes('Permission denied') || errorMessage.includes('not authenticated')) {
+          setError('Unable to access store floorplan. This might be a private store.');
+        } else {
+          setError('Failed to load store floorplan. Please try again later.');
+        }
       } finally {
         setIsLoading(false);
       }
@@ -220,7 +229,7 @@ export const FloorplanItemViewPage: React.FC = () => {
     );
   }
 
-  const floorplanImageUrl = normalizeBase64DataUrl(storePlan.base64);
+  const floorplanImageUrl = getStorePlanImageUrl(storePlan);
 
   return (
     <MobileLayout>
@@ -395,20 +404,7 @@ export const FloorplanItemViewPage: React.FC = () => {
             </button>
           </div>
 
-          {/* Instructions */}
-          {targetItem && (
-            <div className="absolute top-24 left-4 right-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-              <div className="flex items-start">
-                <svg className="w-5 h-5 text-yellow-600 mr-2 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <div className="text-sm text-yellow-800">
-                  <p className="font-medium mb-1">Find your item:</p>
-                  <p>Look for the blinking red pin on the floorplan. You can zoom and pan to get a better view.</p>
-                </div>
-              </div>
-            </div>
-          )}
+
         </div>
       </MobileContent>
     </MobileLayout>

@@ -5,7 +5,6 @@ import { useNavigate } from 'react-router-dom';
 import { SearchResults } from '../components/search';
 import { MobileLayout, MobileContent } from '../components/common/MobileLayout';
 import { LazyLoad } from '../components/performance/LazyLoading';
-import { RequestNewStoreItem } from '../components/user/RequestNewStoreItem';
 import { SearchService } from '../services/searchService';
 import type { SearchResult, SearchState } from '../types/search';
 
@@ -40,7 +39,6 @@ export const SearchPage: React.FC = () => {
     hasSearched: false
   });
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  const [showRequestForm, setShowRequestForm] = useState(false);
   
   // Location services removed - search works without location data
 
@@ -250,46 +248,9 @@ export const SearchPage: React.FC = () => {
             </div>
           )}
 
-          {/* Request New Item Section - Hidden during search */}
-          {!searchInput.trim() && !showRequestForm && (
-            <div className="px-4 mb-6">
-              <div className="bg-gradient-to-br from-white to-orange-50 rounded-2xl p-5 shadow-lg border border-orange-100">
-                <div className="flex items-center mb-4">
-                  <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-amber-500 rounded-2xl flex items-center justify-center mr-3">
-                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                  </div>
-                  <h2 className="text-lg font-bold text-orange-800">Can't Find What You're Looking For?</h2>
-                </div>
-                <p className="text-sm text-orange-700 mb-5 font-medium">
-                  Request new items to be added to our stores. Help us improve our inventory!
-                </p>
-                <button 
-                  onClick={() => setShowRequestForm(true)}
-                  className="w-full bg-gradient-to-r from-orange-500 to-amber-500 text-white py-3 px-4 rounded-2xl font-bold hover:from-orange-600 hover:to-amber-600 transition-all transform hover:scale-105 flex items-center justify-center shadow-lg"
-                >
-                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                  Request New Item
-                </button>
-              </div>
-            </div>
-          )}
 
-          {/* Request New Item Form */}
-          {showRequestForm && (
-            <div className="px-4 mb-6">
-              <RequestNewStoreItem
-                onSuccess={() => {
-                  setShowRequestForm(false);
-                  // Show success message or toast
-                }}
-                onCancel={() => setShowRequestForm(false)}
-              />
-            </div>
-          )}
+
+
 
           {/* Recently Searched Section - Hidden during search */}
           {!searchInput.trim() && recentSearches.length > 0 && (

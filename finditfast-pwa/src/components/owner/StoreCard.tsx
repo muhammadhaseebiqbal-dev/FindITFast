@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Store, StorePlan } from '../../types';
-import { normalizeBase64DataUrl } from '../../utilities/imageUtils';
+import { getStorePlanImageUrl } from '../../utils/storePlanCompatibility';
 
 interface StoreWithPlans {
   store: Store;
@@ -60,7 +60,7 @@ export const StoreCard: React.FC<StoreCardProps> = ({
         <div className="px-6">
           <div className="relative bg-gray-100 rounded-lg overflow-hidden mb-4" style={{ height: '200px' }}>
             <img
-              src={normalizeBase64DataUrl(activePlan.base64, activePlan.type)}
+              src={getStorePlanImageUrl(activePlan)}
               alt={`${store.name} floorplan`}
               className="w-full h-full object-cover"
             />

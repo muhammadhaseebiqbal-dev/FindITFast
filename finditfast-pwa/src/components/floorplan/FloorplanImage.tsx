@@ -26,16 +26,18 @@ export const FloorplanImage: React.FC<FloorplanImageProps> = ({
   const imageRef = useRef<HTMLImageElement>(null);
 
   const handleImageLoad = useCallback(() => {
+    console.log('🖼️ FloorplanImage: Image loaded successfully for src:', src);
     setIsLoading(false);
     setHasError(false);
     onLoad?.();
-  }, [onLoad]);
+  }, [onLoad, src]);
 
   const handleImageError = useCallback(() => {
+    console.error('🖼️ FloorplanImage: Image failed to load for src:', src);
     setIsLoading(false);
     setHasError(true);
     onError?.();
-  }, [onError]);
+  }, [onError, src]);
 
   // Reset transform when image changes
   useEffect(() => {

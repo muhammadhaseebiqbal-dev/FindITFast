@@ -39,9 +39,18 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     
-    // Clear error when user starts typing
-    if (errors[name as keyof FormErrors]) {
-      setErrors(prev => ({ ...prev, [name]: undefined }));
+    // Check for admin email in login mode
+    if (name === 'email' && value === 'admin@finditfast.com' && isLogin) {
+      setErrors(prev => ({ 
+        ...prev, 
+        email: 'This is an admin email. Please use the Admin Login page instead.',
+        general: undefined 
+      }));
+    } else {
+      // Clear error when user starts typing
+      if (errors[name as keyof FormErrors]) {
+        setErrors(prev => ({ ...prev, [name]: undefined }));
+      }
     }
   };
 
@@ -94,6 +103,13 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
 
     try {
       if (isLogin) {
+        // Check if user is trying to login with admin credentials
+        if (formData.email === 'admin@finditfast.com' && formData.password === 'AdminPassword123!') {
+          alert('Admin Account Detected!\n\nYou are trying to login with admin credentials. Please use the Admin Login page instead.\n\nRedirecting you to Admin Login...');
+          navigate('/admin/auth');
+          return;
+        }
+        
         await AuthService.signInOwner(formData.email, formData.password);
       } else {
         const registrationData: OwnerRegistrationData = {
@@ -290,6 +306,17 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
             isLogin ? 'Sign In' : 'Create Account'
           )}
         </button>
+
+        {/* Admin login link */}
+        <div className="text-center pt-2 pb-2">
+          <button
+            type="button"
+            onClick={() => navigate('/admin/auth')}
+            className="text-blue-600 hover:text-blue-800 text-xs underline transition-colors"
+          >
+            Admin Login
+          </button>
+        </div>
 
         {/* Toggle between login and registration */}
         <div className="text-center pt-4">

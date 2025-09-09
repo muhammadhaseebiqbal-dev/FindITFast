@@ -6,6 +6,7 @@ interface ItemPinProps {
   item: Item;
   onClick?: (item: Item) => void;
   isSelected?: boolean;
+  isBlinking?: boolean; // For relocate mode
   className?: string;
   allowInteraction?: boolean; // Override permission check if needed
 }
@@ -14,6 +15,7 @@ export const ItemPin: React.FC<ItemPinProps> = ({
   item,
   onClick,
   isSelected = false,
+  isBlinking = false,
   className = '',
   allowInteraction = true
 }) => {
@@ -90,7 +92,7 @@ export const ItemPin: React.FC<ItemPinProps> = ({
             isSelected
               ? 'bg-red-600 border-red-700 shadow-lg'
               : 'bg-red-500 border-red-600 shadow-md hover:bg-red-600 hover:border-red-700'
-          }`}
+          } ${isBlinking ? 'animate-pulse' : ''}`}
         >
           {/* Pin Icon */}
           <div className="absolute inset-0 flex items-center justify-center">
@@ -109,8 +111,16 @@ export const ItemPin: React.FC<ItemPinProps> = ({
           </div>
 
           {/* Pulse Animation for Selected Pin */}
-          {isSelected && (
+          {isSelected && !isBlinking && (
             <div className="absolute inset-0 rounded-full bg-red-500 animate-ping opacity-75"></div>
+          )}
+          
+          {/* Special Blinking Animation for Relocate Mode */}
+          {isBlinking && (
+            <>
+              <div className="absolute inset-0 rounded-full bg-yellow-400 animate-ping opacity-75"></div>
+              <div className="absolute -inset-2 rounded-full border-2 border-yellow-400 animate-pulse"></div>
+            </>
           )}
         </div>
 
