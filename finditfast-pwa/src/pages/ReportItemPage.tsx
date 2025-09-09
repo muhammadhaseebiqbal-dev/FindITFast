@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { MobileLayout, MobileContent } from '../components/common/MobileLayout';
 import { ItemService } from '../services/firestoreService';
 import type { Item } from '../types';
+import { validateAndPrepareImage, type CompressionResult } from '../utils/imageCompression';
 
 interface CameraState {
   isSupported: boolean;
@@ -19,9 +20,12 @@ export const ReportItemPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [updatingLocation, setUpdatingLocation] = useState(false);
+  const [processingImage, setProcessingImage] = useState(false);
+  const [imageUploadSuccess, setImageUploadSuccess] = useState(false);
   const [reportData, setReportData] = useState({
     itemImage: null as string | null, // base64 string
     itemImagePreview: null as string | null,
+    compressionResult: null as CompressionResult | null,
     hasNewLocation: false, // Track if location has been selected
     newLocation: null as { x: number; y: number } | null
   });
@@ -139,70 +143,97 @@ export const ReportItemPage: React.FC = () => {
     // Draw video frame to canvas
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // Convert canvas to base64
-    const base64Data = canvas.toDataURL('image/jpeg', 0.8);
+    // Convert canvas to blob for compression
+    canvas.toBlob(async (blob) => {
+      if (!blob || currentCapture !== 'item') return;
 
-    // Also create a blob for preview
-    canvas.toBlob((blob) => {
-      if (!blob) return;
-
-      const previewUrl = URL.createObjectURL(blob);
-
-      if (currentCapture === 'item') {
+      setProcessingImage(true);
+      
+      try {
+        // Create File from blob for compression
+        const file = new File([blob], 'camera_image.jpg', { type: 'image/jpeg' });
+        
+        // Compress the image
+        const validation = await validateAndPrepareImage(file, 'main');
+        
+        if (!validation.isValid) {
+          alert(`Image processing failed: ${validation.errors.join(', ')}`);
+          return;
+        }
+        
+        const previewUrl = URL.createObjectURL(validation.compressionResult.compressedFile);
+        
         setReportData(prev => ({
           ...prev,
-          itemImage: base64Data,
-          itemImagePreview: previewUrl
+          itemImage: validation.base64,
+          itemImagePreview: previewUrl,
+          compressionResult: validation.compressionResult
         }));
         
         // Automatically update the item image in database
         if (itemId) {
-          setTimeout(async () => {
-            try {
-              await ItemService.update(itemId, {
-                imageUrl: base64Data
-              });
-              console.log('🖼️ Item image updated successfully from camera');
-            } catch (error) {
-              console.error('Failed to update item image from camera:', error);
-            }
-          }, 100);
+          await ItemService.update(itemId, {
+            imageUrl: validation.base64
+          });
+          console.log('🖼️ Item image updated successfully from camera:', {
+            originalSize: `${(validation.compressionResult.originalSize / 1024).toFixed(2)} KB`,
+            compressedSize: `${(validation.compressionResult.compressedSize / 1024).toFixed(2)} KB`,
+            compressionRatio: `${validation.compressionResult.compressionRatio.toFixed(1)}%`
+          });
         }
+      } catch (error) {
+        console.error('Failed to process and update item image from camera:', error);
+        alert('Failed to update item image. Please try again.');
+      } finally {
+        setProcessingImage(false);
+        stopCamera();
       }
-
-      stopCamera();
     }, 'image/jpeg', 0.8);
-  }, [currentCapture, stopCamera]);
+  }, [currentCapture, stopCamera, itemId]);
 
   // Handle file input
-  const handleFileChange = useCallback((file: File | null) => {
+  const handleFileChange = useCallback(async (file: File | null) => {
     if (!file) return;
 
-    const previewUrl = URL.createObjectURL(file);
+    setProcessingImage(true);
     
-    // Convert file to base64
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const base64Data = e.target?.result as string;
+    try {
+      // Compress and validate the image
+      const validation = await validateAndPrepareImage(file, 'main');
+      
+      if (!validation.isValid) {
+        alert(`Image processing failed: ${validation.errors.join(', ')}`);
+        return;
+      }
+      
+      const previewUrl = URL.createObjectURL(validation.compressionResult.compressedFile);
+      
       setReportData(prev => ({
         ...prev,
-        itemImage: base64Data,
-        itemImagePreview: previewUrl
+        itemImage: validation.base64,
+        itemImagePreview: previewUrl,
+        compressionResult: validation.compressionResult
       }));
       
       // Automatically update the item image in database
-      if (itemId && base64Data) {
-        try {
-          await ItemService.update(itemId, {
-            imageUrl: base64Data
-          });
-          console.log('🖼️ Item image updated successfully');
-        } catch (error) {
-          console.error('Failed to update item image:', error);
-        }
+      if (itemId) {
+        await ItemService.update(itemId, {
+          imageUrl: validation.base64
+        });
+        console.log('🖼️ Item image updated successfully:', {
+          originalSize: `${(validation.compressionResult.originalSize / 1024).toFixed(2)} KB`,
+          compressedSize: `${(validation.compressionResult.compressedSize / 1024).toFixed(2)} KB`,
+          compressionRatio: `${validation.compressionResult.compressionRatio.toFixed(1)}%`
+        });
+        setImageUploadSuccess(true);
+        setTimeout(() => setImageUploadSuccess(false), 3000);
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Failed to process and update item image:', error);
+      alert('Failed to update item image. Please try again.');
+    } finally {
+      setProcessingImage(false);
+    }
   }, [itemId]);
 
   // Handle location selection from floorplan modal
@@ -342,26 +373,51 @@ export const ReportItemPage: React.FC = () => {
                   alt="Item preview"
                   className="w-full max-w-md mx-auto rounded-lg shadow"
                 />
+                {reportData.compressionResult && (
+                  <div className="mt-2 text-sm text-gray-600 text-center">
+                    <p>✅ Image optimized: {(reportData.compressionResult.compressedSize / 1024).toFixed(1)} KB</p>
+                    <p>Compression: {reportData.compressionResult.compressionRatio.toFixed(1)}% smaller</p>
+                  </div>
+                )}
+                {imageUploadSuccess && (
+                  <div className="mt-2 p-2 bg-green-100 border border-green-300 rounded-lg">
+                    <div className="flex items-center justify-center gap-2 text-green-800">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span className="font-medium">🖼️ Image uploaded successfully!</span>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : null}
             
             <div className="flex flex-col space-y-3">
-              {camera.isSupported && (
-                <button
-                  onClick={() => startCamera('item')}
-                  disabled={camera.isActive}
-                  className="bg-blue-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-600 transition-colors disabled:opacity-50"
-                >
-                  📷 Use Camera
-                </button>
+              {processingImage ? (
+                <div className="px-6 py-3 bg-blue-100 text-blue-700 rounded-lg flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                  Processing image...
+                </div>
+              ) : (
+                <>
+                  {camera.isSupported && (
+                    <button
+                      onClick={() => startCamera('item')}
+                      disabled={camera.isActive}
+                      className="bg-blue-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-600 transition-colors disabled:opacity-50"
+                    >
+                      📷 Use Camera
+                    </button>
+                  )}
+                  
+                  <button
+                    onClick={() => itemFileInputRef.current?.click()}
+                    className="bg-gray-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-gray-600 transition-colors"
+                  >
+                    📁 Choose from Files
+                  </button>
+                </>
               )}
-              
-              <button
-                onClick={() => itemFileInputRef.current?.click()}
-                className="bg-gray-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-gray-600 transition-colors"
-              >
-                📁 Choose from Files
-              </button>
               
               <input
                 type="file"
@@ -386,9 +442,6 @@ export const ReportItemPage: React.FC = () => {
                   </svg>
                   <span className="text-green-800 font-medium">New location selected</span>
                 </div>
-                <p className="text-sm text-green-700 mt-1">
-                  Position: {reportData.newLocation?.x?.toFixed(1)}%, {reportData.newLocation?.y?.toFixed(1)}%
-                </p>
               </div>
             ) : null}
             
