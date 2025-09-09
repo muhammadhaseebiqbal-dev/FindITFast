@@ -121,9 +121,12 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
     }
 
     try {
+      // Clean price by removing $ and non-numeric characters except decimal point
+      const cleanPrice = newItem.price ? newItem.price.replace(/[^\d.]/g, '') : undefined;
+
       const itemData = {
         name: newItem.name.trim(),
-        price: newItem.price.trim() || undefined,
+        price: cleanPrice || undefined,
         category: newItem.category.trim() || 'General',
         description: newItem.description.trim() || undefined,
         imageUrl: newItem.image || undefined,

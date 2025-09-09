@@ -360,9 +360,12 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
         imageUrl = itemValidation.base64;
       }
 
+      // Clean price by removing $ and non-numeric characters except decimal point
+      const cleanPrice = newItem.price ? newItem.price.replace(/[^\d.]/g, '') : undefined;
+
       const itemData = {
         name: newItem.name,
-        price: newItem.price || undefined,
+        price: cleanPrice || undefined,
         category: newItem.category || undefined,
         description: newItem.description || undefined,
         imageUrl: imageUrl,

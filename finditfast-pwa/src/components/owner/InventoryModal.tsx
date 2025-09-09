@@ -142,9 +142,12 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
       }
 
       // Create item data with metadata instead of base64 for Safari/iOS compatibility
+      // Clean price by removing $ and non-numeric characters except decimal point
+      const cleanPrice = newItem.price ? newItem.price.replace(/[^\d.]/g, '') : null;
+
       const itemData = {
         name: newItem.name.trim(),
-        price: newItem.price.trim() || null,
+        price: cleanPrice || null,
         imageUrl: '', // Empty URL since we're not storing base64
         priceImageUrl: newItem.priceImage ? '' : undefined, // Empty URL if price image exists
         storeId: store.id,

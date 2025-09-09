@@ -152,7 +152,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
       const itemData: Partial<Item> = {
         id: itemId,
         name: itemForm.name.trim(),
-        price: itemForm.price.trim() || null,
+        price: itemForm.price ? itemForm.price.replace(/[^\d.]/g, '') : null,
         imageUrl: itemImageUrl,
         priceImageUrl,
         storeId,
