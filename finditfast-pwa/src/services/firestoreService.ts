@@ -98,14 +98,28 @@ export class FirestoreService {
 
 // Specific service methods for each collection
 export const StoreService = {
-  getAll: () => FirestoreService.getCollection<Store>('storeRequests', [where('status', '==', 'approved')]),
-  getById: (id: string) => FirestoreService.getDocument<Store>('storeRequests', id),
+  getAll: () => FirestoreService.getCollection<Store>('storeRequests', [where('status', '==', 'approved'), where('deleted', '!=', true)]),
+  getById: async (id: string): Promise<Store | null> => {
+    const store = await FirestoreService.getDocument<Store & { deleted?: boolean }>('storeRequests', id);
+    // Return null if store is deleted or doesn't exist
+    if (!store || store.deleted) {
+      return null;
+    }
+    return store;
+  },
   getByOwner: (ownerId: string) =>
-    FirestoreService.getCollection<Store>('storeRequests', [where('ownerId', '==', ownerId), where('status', '==', 'approved')]),
+    FirestoreService.getCollection<Store>('storeRequests', [
+      where('ownerId', '==', ownerId), 
+      where('status', '==', 'approved'),
+      where('deleted', '!=', true)
+    ]),
   getNearby: (_latitude: number, _longitude: number, _radiusKm: number = 50) => {
     // Note: For production, consider using GeoFirestore for more accurate geospatial queries
     // This is a simplified implementation that gets approved stores
-    return FirestoreService.getCollection<Store>('storeRequests', [where('status', '==', 'approved')]);
+    return FirestoreService.getCollection<Store>('storeRequests', [
+      where('status', '==', 'approved'),
+      where('deleted', '!=', true)
+    ]);
   },
   create: (store: Omit<Store, 'id'>) => FirestoreService.addDocument<Store>('storeRequests', store),
   update: async (id: string, data: Partial<Store>) => {

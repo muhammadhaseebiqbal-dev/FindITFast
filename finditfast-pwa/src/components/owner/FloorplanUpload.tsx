@@ -170,7 +170,7 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
         ownerId: user.uid,
         name: selectedFile.name,
         type: selectedFile.type,
-        size: compressedFile.size,
+        size: validation.compressionResult.compressedSize,
         base64: base64Data,
         uploadedAt: now as any,
         originalSize: selectedFile.size,
