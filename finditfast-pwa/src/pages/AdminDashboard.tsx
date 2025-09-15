@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { auth, db } from '../services/firebase';
-import { collection, query, where, getDocs, onSnapshot, doc, updateDoc, setDoc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, onSnapshot, doc, updateDoc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
 import { EmailAuthProvider, reauthenticateWithCredential, updateEmail, updatePassword, sendEmailVerification, verifyBeforeUpdateEmail } from 'firebase/auth';
 
 export const AdminDashboard: React.FC = () => {
@@ -27,6 +27,7 @@ export const AdminDashboard: React.FC = () => {
   const [stores, setStores] = useState<any[]>([]);
   const [storesLoading, setStoresLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ storeId: string; storeName: string } | null>(null);
+  const [deleteOwnerConfirm, setDeleteOwnerConfirm] = useState<{ ownerId: string; ownerName: string; ownerEmail: string } | null>(null);
   // App banner text state
   const [homeBannerText, setHomeBannerText] = useState<string>('');
   const [savingBanner, setSavingBanner] = useState<boolean>(false);
@@ -461,40 +462,85 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  // Load all stores
+  // Load all stores - following same pattern as loadStoreOwners
   const loadStores = async () => {
     if (!isAppAdmin) return;
     
     try {
       setStoresLoading(true);
+      console.log('🔍 [ADMIN STORES DEBUG] Starting to load stores for admin dashboard...');
+      console.log('📊 [ADMIN STORES DEBUG] Following same pattern as store owners section...');
       
-      // Get approved store requests (these are the active stores)
-      // Split the query to avoid index requirements
-      const approvedStoresQuery = query(
-        collection(db, 'storeRequests'), 
-        where('status', '==', 'approved')
-      );
-      const approvedStoresSnapshot = await getDocs(approvedStoresQuery);
+      // Get ALL store requests (same as loadStoreOwners) and then filter
+      console.log('📋 [ADMIN STORES DEBUG] Fetching ALL store requests from storeRequests collection...');
+      const requestsSnapshot = await getDocs(collection(db, 'storeRequests'));
+      console.log(`� [ADMIN STORES DEBUG] Found ${requestsSnapshot.size} total store requests in 'storeRequests' collection`);
       
-      // Filter out deleted stores client-side
-      const storesData = approvedStoresSnapshot.docs
-        .filter(doc => !doc.data().deleted)
-        .map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            ...data,
-            // Map store request fields to store fields for consistency
-            name: data.storeName,
-            ownerId: data.requestedBy,
-            ownerEmail: data.ownerEmail,
-            coordinates: data.storeCoordinates,
-            address: data.storeAddress,
-            createdAt: data.submittedAt?.toDate() || new Date(),
-            approvedAt: data.approvedAt?.toDate() || null,
-            hasFloorplan: data.hasFloorplan || false
-          };
+      // Map all requests with proper date conversion (same as loadStoreOwners)
+      const allRequestsData = requestsSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          submittedAt: data.submittedAt?.toDate() || new Date(),
+          approvedAt: data.approvedAt?.toDate(),
+          rejectedAt: data.rejectedAt?.toDate()
+        };
+      });
+      
+      // Count by status for debugging
+      const statusCounts = {
+        approved: allRequestsData.filter(req => req.status === 'approved').length,
+        pending: allRequestsData.filter(req => req.status === 'pending').length,
+        rejected: allRequestsData.filter(req => req.status === 'rejected').length,
+        other: allRequestsData.filter(req => !['approved', 'pending', 'rejected'].includes(req.status)).length
+      };
+      console.log('� [ADMIN STORES DEBUG] Store requests by status:', statusCounts);
+      
+      // Filter for approved stores only and exclude deleted ones
+      const approvedStores = allRequestsData.filter(request => {
+        const isApproved = request.status === 'approved';
+        const isDeleted = request.deleted;
+        
+        if (!isApproved) return false;
+        if (isDeleted) {
+          console.log(`⚠️ [ADMIN STORES DEBUG] Filtering out deleted approved store: ${request.id} (${request.storeName})`);
+          return false;
+        }
+        
+        console.log(`✅ [ADMIN STORES DEBUG] Including approved store: ${request.id} (${request.storeName})`);
+        return true;
+      });
+      
+      console.log(`📊 [ADMIN STORES DEBUG] After filtering: ${approvedStores.length} approved non-deleted stores`);
+      
+      // Map to store format with proper field mapping
+      const storesData = approvedStores.map(request => {
+        console.log(`🔄 [ADMIN STORES DEBUG] Mapping store request ${request.id}:`, {
+          id: request.id,
+          storeName: request.storeName,
+          storeAddress: request.storeAddress || request.address,
+          requestedBy: request.requestedBy,
+          ownerEmail: request.ownerEmail,
+          status: request.status,
+          approvedAt: request.approvedAt,
+          submittedAt: request.submittedAt
         });
+        
+        return {
+          id: request.id,
+          ...request,
+          // Map store request fields to consistent store fields
+          name: request.storeName,
+          ownerId: request.requestedBy,
+          ownerEmail: request.ownerEmail,
+          coordinates: request.storeCoordinates || request.coordinates,
+          address: request.storeAddress || request.address,
+          createdAt: request.submittedAt || new Date(),
+          approvedAt: request.approvedAt || null,
+          hasFloorplan: request.hasFloorplan || false
+        };
+      });
       
       // Sort by approval date (most recent first)
       const sortedStores = storesData.sort((a, b) => {
@@ -503,27 +549,178 @@ export const AdminDashboard: React.FC = () => {
         return dateB.getTime() - dateA.getTime();
       });
       
+      console.log('🎯 [ADMIN STORES DEBUG] Final store loading summary:');
+      console.log(`   • Total store requests in database: ${requestsSnapshot.size}`);
+      console.log(`   • Approved requests: ${statusCounts.approved}`);
+      console.log(`   • Pending requests: ${statusCounts.pending}`);
+      console.log(`   • Rejected requests: ${statusCounts.rejected}`);
+      console.log(`   • Final stores to display: ${sortedStores.length}`);
+      console.log('   • Data source: storeRequests collection (same as store owners section)');
+      console.log('   • Filter: status === "approved" AND deleted !== true');
+      
       setStores(sortedStores);
     } catch (error) {
-      console.error('Error loading stores:', error);
+      console.error('❌ [ADMIN STORES DEBUG] Error loading stores:', error);
     } finally {
       setStoresLoading(false);
     }
   };
 
-  // Delete store
+  // Delete store owner and all related data (HARD DELETE)
+  const handleDeleteStoreOwner = async (ownerId: string) => {
+    if (!isAppAdmin || !deleteOwnerConfirm) return;
+    
+    try {
+      setActionLoading(`delete_owner_${ownerId}`);
+      
+      console.log('🗑️ Starting HARD deletion of store owner:', ownerId);
+      
+      // Get all store requests by this owner (using requestedBy field)
+      const storeRequestsQuery = query(
+        collection(db, 'storeRequests'),
+        where('requestedBy', '==', ownerId)
+      );
+      const storeRequestsSnapshot = await getDocs(storeRequestsQuery);
+      console.log(`📋 Found ${storeRequestsSnapshot.size} store requests to DELETE`);
+      
+      // Get all stores by this owner (using ownerId field)
+      const storesQuery = query(
+        collection(db, 'stores'),
+        where('ownerId', '==', ownerId)
+      );
+      const storesSnapshot = await getDocs(storesQuery);
+      console.log(`🏪 Found ${storesSnapshot.size} stores to DELETE`);
+      
+      // Collect all store IDs for deleting related items
+      const storeIds = new Set<string>();
+      
+      // Add store IDs from store requests
+      storeRequestsSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.storeId) storeIds.add(data.storeId);
+        if (data.storeName) storeIds.add(data.storeName); // Sometimes items reference by name
+      });
+      
+      // Add store IDs from stores collection
+      storesSnapshot.docs.forEach(doc => {
+        storeIds.add(doc.id);
+        const data = doc.data();
+        if (data.name) storeIds.add(data.name); // Sometimes items reference by name
+      });
+      
+      console.log(`🔍 Will DELETE items from stores:`, Array.from(storeIds));
+      
+      // Get all items from these stores
+      let itemsToDelete: any[] = [];
+      for (const storeId of storeIds) {
+        try {
+          // Try with storeId field
+          const itemsQuery1 = query(
+            collection(db, 'items'),
+            where('storeId', '==', storeId)
+          );
+          const itemsSnapshot1 = await getDocs(itemsQuery1);
+          itemsToDelete = itemsToDelete.concat(itemsSnapshot1.docs);
+          
+          // Try with store field (alternative field name)
+          const itemsQuery2 = query(
+            collection(db, 'items'),
+            where('store', '==', storeId)
+          );
+          const itemsSnapshot2 = await getDocs(itemsQuery2);
+          itemsToDelete = itemsToDelete.concat(itemsSnapshot2.docs);
+        } catch (error) {
+          console.warn(`⚠️ Error querying items for store ${storeId}:`, error);
+        }
+      }
+      
+      // Remove duplicates based on document ID
+      const uniqueItems = itemsToDelete.filter((item, index, self) => 
+        index === self.findIndex(t => t.id === item.id)
+      );
+      console.log(`📦 Found ${uniqueItems.length} items to DELETE`);
+      
+      // HARD DELETE all items
+      for (const itemDoc of uniqueItems) {
+        try {
+          await deleteDoc(doc(db, 'items', itemDoc.id));
+          console.log(`✅ DELETED item: ${itemDoc.id}`);
+        } catch (error) {
+          console.warn(`⚠️ Error deleting item ${itemDoc.id}:`, error);
+        }
+      }
+      
+      // HARD DELETE all stores
+      for (const storeDoc of storesSnapshot.docs) {
+        try {
+          await deleteDoc(doc(db, 'stores', storeDoc.id));
+          console.log(`✅ DELETED store: ${storeDoc.id}`);
+        } catch (error) {
+          console.warn(`⚠️ Error deleting store ${storeDoc.id}:`, error);
+        }
+      }
+      
+      // HARD DELETE all store requests
+      for (const requestDoc of storeRequestsSnapshot.docs) {
+        try {
+          await deleteDoc(doc(db, 'storeRequests', requestDoc.id));
+          console.log(`✅ DELETED store request: ${requestDoc.id}`);
+        } catch (error) {
+          console.warn(`⚠️ Error deleting store request ${requestDoc.id}:`, error);
+        }
+      }
+      
+      // HARD DELETE the store owner from storeOwners collection (if exists)
+      try {
+        const storeOwnerQuery = query(
+          collection(db, 'storeOwners'),
+          where('firebaseUid', '==', ownerId)
+        );
+        const storeOwnerSnapshot = await getDocs(storeOwnerQuery);
+        
+        for (const ownerDoc of storeOwnerSnapshot.docs) {
+          await deleteDoc(doc(db, 'storeOwners', ownerDoc.id));
+          console.log(`✅ DELETED store owner: ${ownerDoc.id}`);
+        }
+        console.log(`👤 DELETED ${storeOwnerSnapshot.size} store owner records`);
+      } catch (error) {
+        console.warn('⚠️ Error deleting store owner record:', error);
+      }
+      
+      // Remove from local state
+      setStoreOwners(prev => prev.filter(owner => owner.ownerId !== ownerId));
+      setDeleteOwnerConfirm(null);
+      
+      // Update stats
+      setStats(prev => ({ 
+        ...prev, 
+        storeOwners: prev.storeOwners - 1,
+        totalStores: prev.totalStores - storeRequestsSnapshot.size,
+        totalItems: prev.totalItems - uniqueItems.length
+      }));
+      
+      console.log('✅ Store owner and all related data PERMANENTLY DELETED');
+      
+    } catch (error) {
+      console.error('❌ Error deleting store owner:', error);
+      alert('Failed to delete store owner. Please try again.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Delete store (HARD DELETE)
   const handleDeleteStore = async (storeId: string) => {
     if (!isAppAdmin || !deleteConfirm) return;
     
     try {
       setActionLoading(`delete_${storeId}`);
       
-      // Mark the store request as deleted (soft delete)
-      await updateDoc(doc(db, 'storeRequests', storeId), {
-        deleted: true,
-        deletedAt: new Date(),
-        deletedBy: user?.uid
-      });
+      console.log('🗑️ Starting HARD deletion of store:', storeId);
+      
+      // HARD DELETE the store request
+      await deleteDoc(doc(db, 'storeRequests', storeId));
+      console.log(`✅ DELETED store request: ${storeId}`);
       
       // Remove from local state
       setStores(prev => prev.filter(store => store.id !== storeId));
@@ -532,8 +729,11 @@ export const AdminDashboard: React.FC = () => {
       // Update stats
       setStats(prev => ({ ...prev, totalStores: prev.totalStores - 1 }));
       
+      console.log('✅ Store PERMANENTLY DELETED');
+      
     } catch (error) {
-      console.error('Error deleting store:', error);
+      console.error('❌ Error deleting store:', error);
+      alert('Failed to delete store. Please try again.');
     } finally {
       setActionLoading(null);
     }
@@ -677,33 +877,57 @@ export const AdminDashboard: React.FC = () => {
       
       try {
         setLoading(true);
+        console.log('📊 [ADMIN STATS DEBUG] Loading dashboard statistics...');
 
-        // Get all approved stores (excluding deleted ones)
+        // Get all approved stores (excluding deleted ones) - same logic as loadStores
+        console.log('🏪 [ADMIN STATS DEBUG] Counting approved stores from storeRequests...');
         const storesQuery = query(
           collection(db, 'storeRequests'),
           where('status', '==', 'approved')
         );
         const storesSnapshot = await getDocs(storesQuery);
+        console.log(`📋 [ADMIN STATS DEBUG] Found ${storesSnapshot.size} approved store requests`);
+        
         // Filter out deleted stores client-side
-        const totalStores = storesSnapshot.docs.filter(doc => !doc.data().deleted).length;
+        const totalStores = storesSnapshot.docs.filter(doc => {
+          const isDeleted = doc.data().deleted;
+          if (isDeleted) {
+            console.log(`⚠️ [ADMIN STATS DEBUG] Excluding deleted store from count: ${doc.id}`);
+          }
+          return !isDeleted;
+        }).length;
+        console.log(`✅ [ADMIN STATS DEBUG] Total active stores: ${totalStores}`);
 
         // Get all items
+        console.log('📦 [ADMIN STATS DEBUG] Counting total items...');
         const itemsQuery = query(collection(db, 'items'));
         const itemsSnapshot = await getDocs(itemsQuery);
         const totalItems = itemsSnapshot.size;
+        console.log(`📦 [ADMIN STATS DEBUG] Total items: ${totalItems}`);
 
         // Get pending store requests
+        console.log('⏳ [ADMIN STATS DEBUG] Counting pending requests...');
         const requestsQuery = query(
           collection(db, 'storeRequests'),
           where('status', '==', 'pending')
         );
         const requestsSnapshot = await getDocs(requestsQuery);
         const pendingRequests = requestsSnapshot.size;
+        console.log(`⏳ [ADMIN STATS DEBUG] Pending requests: ${pendingRequests}`);
 
         // Get store owners
+        console.log('👥 [ADMIN STATS DEBUG] Counting store owners...');
         const ownersQuery = query(collection(db, 'storeOwners'));
         const ownersSnapshot = await getDocs(ownersQuery);
         const storeOwners = ownersSnapshot.size;
+        console.log(`👥 [ADMIN STATS DEBUG] Store owners: ${storeOwners}`);
+
+        console.log('🎯 [ADMIN STATS DEBUG] Final statistics:', {
+          totalStores,
+          totalItems,
+          pendingRequests,
+          storeOwners
+        });
 
         setStats({
           totalStores,
@@ -1175,9 +1399,13 @@ export const AdminDashboard: React.FC = () => {
               
               <div className="mb-6">
                 <p className="text-sm text-gray-700">
-                  Are you sure you want to delete <span className="font-medium">"{deleteConfirm.storeName}"</span>? 
-                  This will permanently remove the store and all associated data.
+                  Are you sure you want to <span className="font-bold text-red-600">permanently delete</span> <span className="font-medium">"{deleteConfirm.storeName}"</span>? 
                 </p>
+                <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-sm text-red-800 font-bold">
+                    🔥 WARNING: This will permanently remove the store from the database and cannot be undone!
+                  </p>
+                </div>
               </div>
               
               <div className="flex justify-end space-x-3">
@@ -1206,7 +1434,81 @@ export const AdminDashboard: React.FC = () => {
                       Deleting...
                     </div>
                   ) : (
-                    'Delete Store'
+                    'Permanently Delete Store'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Store Owner Confirmation Modal */}
+      {deleteOwnerConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full">
+            <div className="p-6">
+              <div className="flex items-center mb-4">
+                <div className="flex-shrink-0">
+                  <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                    <svg className="w-7 h-7 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="ml-4">
+                  <h3 className="text-xl font-medium text-gray-900">Delete Store Owner</h3>
+                  <p className="text-sm text-gray-500">This action cannot be undone</p>
+                </div>
+              </div>
+              
+              <div className="mb-6 space-y-3">
+                <p className="text-sm text-gray-700">
+                  Are you sure you want to <span className="font-bold text-red-600">permanently delete</span> <span className="font-medium">"{deleteOwnerConfirm.ownerName}"</span>?
+                </p>
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-sm text-red-800 font-medium mb-2">⚠️ This will PERMANENTLY remove:</p>
+                  <ul className="text-sm text-red-700 space-y-1 ml-4">
+                    <li>• The store owner account ({deleteOwnerConfirm.ownerEmail})</li>
+                    <li>• All stores owned by this user</li>
+                    <li>• All store requests submitted by this user</li>
+                    <li>• All inventory items in their stores</li>
+                  </ul>
+                </div>
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                  <p className="text-sm text-yellow-800 font-bold">
+                    🔥 WARNING: This is a HARD DELETE operation. The data cannot be recovered!
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setDeleteOwnerConfirm(null)}
+                  disabled={!!actionLoading}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleDeleteStoreOwner(deleteOwnerConfirm.ownerId)}
+                  disabled={!!actionLoading}
+                  className={`px-4 py-2 rounded-lg text-white font-medium ${
+                    actionLoading === `delete_owner_${deleteOwnerConfirm.ownerId}`
+                      ? 'bg-red-400 cursor-wait'
+                      : 'bg-red-600 hover:bg-red-700'
+                  }`}
+                >
+                  {actionLoading === `delete_owner_${deleteOwnerConfirm.ownerId}` ? (
+                    <div className="flex items-center">
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Permanently Deleting...
+                    </div>
+                  ) : (
+                    'Permanently Delete Owner'
                   )}
                 </button>
               </div>
@@ -1793,7 +2095,15 @@ export const AdminDashboard: React.FC = () => {
 
           {activeTab === 'owners' && (
             <div className="bg-white rounded-xl p-6 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Store Owners</h2>
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Store Owners</h2>
+                  <p className="text-gray-600">Manage store owners and their related data</p>
+                </div>
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                  {storeOwners.length} Owners
+                </span>
+              </div>
               {ownersLoading ? (
                 <div className="flex justify-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -1803,13 +2113,35 @@ export const AdminDashboard: React.FC = () => {
                   {storeOwners.map((owner) => (
                     <div key={owner.ownerId} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                       <div className="flex justify-between items-start mb-3">
-                        <div>
+                        <div className="flex-1">
                           <h3 className="font-semibold text-lg text-gray-900">{owner.ownerName}</h3>
                           <p className="text-gray-600">{owner.ownerEmail}</p>
+                          <p className="text-xs text-gray-400 mt-1">ID: {owner.ownerId}</p>
                         </div>
-                        <div className="text-right">
-                          <div className="text-sm text-gray-500">Total Requests</div>
-                          <div className="text-xl font-bold text-gray-900">{owner.totalRequests}</div>
+                        <div className="flex items-center space-x-3">
+                          <div className="text-right">
+                            <div className="text-sm text-gray-500">Total Requests</div>
+                            <div className="text-xl font-bold text-gray-900">{owner.totalRequests}</div>
+                          </div>
+                          <button
+                            onClick={() => setDeleteOwnerConfirm({ 
+                              ownerId: owner.ownerId, 
+                              ownerName: owner.ownerName, 
+                              ownerEmail: owner.ownerEmail 
+                            })}
+                            disabled={!!actionLoading}
+                            className={`flex items-center px-3 py-2 text-sm rounded-lg transition-colors ${
+                              actionLoading
+                                ? 'bg-red-300 text-white cursor-not-allowed'
+                                : 'bg-red-600 text-white hover:bg-red-700'
+                            }`}
+                            title="Delete store owner and all related stores"
+                          >
+                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            Delete Owner
+                          </button>
                         </div>
                       </div>
                       
@@ -1828,11 +2160,18 @@ export const AdminDashboard: React.FC = () => {
                         </div>
                       </div>
                       
-                      <div className="text-sm text-gray-500">
-                        Latest Request: {owner.requests.length > 0 ? 
-                          new Date(Math.max(...owner.requests.map((r: any) => new Date(r.submittedAt).getTime()))).toLocaleDateString() :
-                          'No requests'
-                        }
+                      <div className="flex justify-between items-center">
+                        <div className="text-sm text-gray-500">
+                          Latest Request: {owner.requests.length > 0 ? 
+                            new Date(Math.max(...owner.requests.map((r: any) => new Date(r.submittedAt).getTime()))).toLocaleDateString() :
+                            'No requests'
+                          }
+                        </div>
+                        {owner.approvedStores > 0 && (
+                          <div className="text-xs text-red-600 font-bold bg-red-50 px-2 py-1 rounded">
+                            🔥 PERMANENT DELETE: Will remove {owner.approvedStores} store{owner.approvedStores !== 1 ? 's' : ''}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}

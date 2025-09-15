@@ -487,7 +487,6 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
                               <span className="text-gray-400 text-sm">AUD</span>
                             </div>
                           </div>
-                          />
                         </div>
 
                         {/* Category */}
