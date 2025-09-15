@@ -477,7 +477,7 @@ export const FloorplanManager: React.FC = () => {
                                       const storeId = (request as any).storeId || store?.id || `temp_${request.id}`;
                                       setInventoryManagerOpen({ storePlan: floorplan, storeId });
                                     }}
-                                    className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded hover:bg-green-200 transition-colors"
+                                    className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded hover:bg-green-200 transition-colors hidden"
                                     title="Manage inventory for this floorplan"
                                   >
                                     Manage Items
@@ -544,7 +544,6 @@ export const FloorplanManager: React.FC = () => {
               <li>• Use "Choose from Gallery" to upload an existing image</li>
               <li>• Upload multiple floorplans for different areas/floors</li>
               <li>• Click "Set Active" to change which floorplan is primary</li>
-              <li>• Click "Manage Items" to add products to your floorplan</li>
               <li>• Click "Delete" to remove unwanted floorplans</li>
               <li>• Click any floorplan image to view full-size</li>
               <li>• Images are stored securely as base64 data</li>
