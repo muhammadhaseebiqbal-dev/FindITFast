@@ -105,8 +105,16 @@ export const OwnerDashboard: React.FC = () => {
             StoreService.getById(ownerProfile.storeId),
             ItemService.getByStore(ownerProfile.storeId)
           ]);
-          setStore(storeData);
-          setItems(storeItems);
+          
+          // Handle case where store has been deleted
+          if (!storeData) {
+            setError('This store has been deleted or is no longer available. Please contact support if you believe this is an error.');
+            setStore(null);
+            setItems([]);
+          } else {
+            setStore(storeData);
+            setItems(storeItems);
+          }
         } catch (error) {
           console.error('Error loading store data:', error);
           setError('Failed to load store data');

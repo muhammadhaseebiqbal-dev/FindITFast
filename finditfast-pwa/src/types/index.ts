@@ -20,6 +20,9 @@ export interface Store {
   ownerId: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  deleted?: boolean;
+  deletedAt?: Date;
+  deletedBy?: string;
 }
 
 export interface StorePlan {
@@ -121,6 +124,9 @@ export interface StoreRequest {
   rejectedAt?: Date;
   approvedBy?: string;
   rejectedBy?: string;
+  deleted?: boolean;
+  deletedAt?: Date;
+  deletedBy?: string;
   uploadedFiles?: Array<{
     name: string;
     url: string;
