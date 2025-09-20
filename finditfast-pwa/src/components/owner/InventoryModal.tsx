@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { ItemService } from '../../services/firestoreService';
 import { fileToBase64, validateImageFile, compressImage } from '../../utilities/imageUtils';
 import { getStorePlanImageUrl } from '../../utils/storePlanCompatibility';
+import { sanitizeForSafari, logSafariDebug, logSafariError } from '../../utils/safariCompatibility';
 import type { Store, StorePlan, Item } from '../../types';
 
 interface InventoryModalProps {
@@ -117,6 +118,13 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 
   const handleImageUpload = async (file: File, type: 'item' | 'price') => {
     try {
+      logSafariDebug('Starting image upload', { 
+        fileName: file.name, 
+        fileSize: file.size, 
+        fileType: file.type,
+        uploadType: type
+      });
+
       // Validate file
       if (!validateImageFile(file, 5)) { // 5MB limit
         throw new Error('Invalid image file. Please select a valid image under 5MB.');
@@ -134,6 +142,10 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
       
       // Convert to base64
       const base64 = await fileToBase64(compressedFile);
+      logSafariDebug('Base64 conversion successful', { 
+        base64Length: base64.length,
+        isValidDataUrl: base64.startsWith('data:')
+      });
       
       if (type === 'item') {
         setNewItem(prev => ({ ...prev, itemImage: base64 }));
@@ -142,8 +154,14 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
         setNewItem(prev => ({ ...prev, priceImage: base64 }));
         setPriceImageSizeInfo({ originalSize, compressedSize });
       }
+      
+      logSafariDebug('Image upload completed successfully');
     } catch (error) {
-      console.error('Error processing image:', error);
+      logSafariError('Error processing image', error, { 
+        fileName: file.name, 
+        fileSize: file.size, 
+        uploadType: type 
+      });
       setError(`Failed to process ${type} image: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
@@ -152,6 +170,12 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
     try {
       setSaving(true);
       setError(null);
+
+      logSafariDebug('Starting item save process', {
+        itemName: newItem.name,
+        hasImage: !!newItem.itemImage,
+        position: { x: newItem.x, y: newItem.y }
+      });
 
       // Validation
       if (!newItem.name.trim()) {
@@ -165,7 +189,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
       // Clean price by removing $ and non-numeric characters except decimal point
       const cleanPrice = newItem.price ? newItem.price.replace(/[^\d.]/g, '') : null;
 
-      const itemData = {
+      const rawItemData = {
         name: newItem.name.trim(),
         price: cleanPrice || null,
         imageUrl: '', // Empty URL since we're not storing base64
@@ -173,13 +197,13 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
         storeId: store.id,
         floorplanId: storePlan.id,
         position: {
-          x: newItem.x,
-          y: newItem.y
+          x: Number(newItem.x), // Ensure numeric types for Safari
+          y: Number(newItem.y)  // Ensure numeric types for Safari
         },
         verified: true,
-        verifiedAt: new Date() as any,
-        createdAt: new Date() as any,
-        updatedAt: new Date() as any,
+        verifiedAt: Timestamp.now(),
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
         reportCount: 0,
         // Metadata fields for Safari/iOS compatibility
         hasImageData: !!newItem.itemImage,
@@ -190,8 +214,15 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
         priceImageSize: newItem.priceImage ? newItem.priceImage.length : undefined,
       };
 
+      // Sanitize data for Safari compatibility
+      const itemData = sanitizeForSafari(rawItemData);
+      
+      logSafariDebug('Item data prepared and sanitized', itemData);
+
       // Save to Firestore
-      await ItemService.create(itemData as Omit<Item, 'id'>);
+      const itemId = await ItemService.create(itemData as Omit<Item, 'id'>);
+      
+      logSafariDebug('Item saved successfully', { itemId });
 
       // Reset form
       setNewItem({
@@ -209,9 +240,15 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 
       // Reload items
       await loadItems();
+      
+      logSafariDebug('Item save process completed successfully');
 
     } catch (error) {
-      console.error('Error saving item:', error);
+      logSafariError('Error saving item', error, {
+        itemName: newItem.name,
+        hasImage: !!newItem.itemImage,
+        position: { x: newItem.x, y: newItem.y }
+      });
       setError(error instanceof Error ? error.message : 'Failed to save item');
     } finally {
       setSaving(false);

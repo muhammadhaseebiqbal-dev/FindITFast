@@ -534,7 +534,6 @@ export const FloorplanManager: React.FC = () => {
               <li>• Use "Choose from Gallery" to upload an existing image</li>
               <li>• Upload multiple floorplans for different areas/floors</li>
               <li>• Click "Set Active" to change which floorplan is primary</li>
-              <li>• Click "Manage Items" to add products to your floorplan</li>
               <li>• Click "Delete" to remove unwanted floorplans</li>
               <li>• Click any floorplan image to view full-size</li>
               <li>• Images are stored securely as base64 data</li>
