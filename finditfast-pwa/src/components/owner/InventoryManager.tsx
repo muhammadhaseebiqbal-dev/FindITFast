@@ -225,7 +225,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
         {/* Header */}
         <div className="p-4 border-b border-gray-200 flex items-center justify-between">
           <h2 className="text-xl font-semibold text-gray-900">
-            Manage Inventory - {storePlan.name}
+            Manage Items - {storePlan.name}
           </h2>
           <button
             onClick={onClose}

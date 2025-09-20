@@ -99,7 +99,7 @@ export const MultiStoreItemManager: React.FC = () => {
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">Floorplan Required</h3>
           <p className="text-gray-600 mb-4">
-            Upload floorplans for your approved stores before managing inventory.
+            Upload floorplans for your approved stores before managing items.
           </p>
           <button
             onClick={() => window.location.href = '/owner/dashboard?tab=floorplan'}
@@ -118,7 +118,7 @@ export const MultiStoreItemManager: React.FC = () => {
     return (
       <div className="bg-white rounded-xl shadow-sm">
         <div className="p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">Inventory Management</h2>
+          <h2 className="text-xl font-semibold text-gray-900">Item Management</h2>
           <p className="text-gray-600">Managing items for: <span className="font-medium">{store.name}</span></p>
         </div>
         <SingleStoreItemManager
@@ -138,8 +138,8 @@ export const MultiStoreItemManager: React.FC = () => {
       <div className="bg-white rounded-xl p-6 shadow-sm">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">Inventory Management</h2>
-            <p className="text-gray-600">Select a store to manage its inventory</p>
+            <h2 className="text-xl font-semibold text-gray-900">Item Management</h2>
+            <p className="text-gray-600">Select a store to manage its items</p>
           </div>
           <div className="text-right">
             <p className="text-sm text-gray-500">Stores with Floorplans</p>
@@ -194,7 +194,7 @@ export const MultiStoreItemManager: React.FC = () => {
               {selectedStore === store.id && (
                 <div className="mt-3 pt-3 border-t border-blue-200">
                   <p className="text-xs text-blue-600 font-medium">
-                    Manage inventory for this store below ↓
+                    Manage items for this store below ↓
                   </p>
                 </div>
               )}
@@ -214,7 +214,7 @@ export const MultiStoreItemManager: React.FC = () => {
               <div>
                 <div className="p-6 border-b border-gray-200">
                   <h3 className="text-lg font-semibold text-gray-900">
-                    Managing Inventory: {store.name}
+                    Managing Items: {store.name}
                   </h3>
                   <p className="text-sm text-gray-600 mt-1">
                     📍 {store.address || 'Address not available'}
@@ -247,7 +247,7 @@ export const MultiStoreItemManager: React.FC = () => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <div>
-            <h4 className="text-sm font-medium text-blue-800 mb-1">How to manage inventory:</h4>
+            <h4 className="text-sm font-medium text-blue-800 mb-1">How to manage items:</h4>
             <ul className="text-sm text-blue-700 space-y-1">
               <li>• Click on any store card above to select it</li>
               <li>• Use the item manager below to add products to your store</li>

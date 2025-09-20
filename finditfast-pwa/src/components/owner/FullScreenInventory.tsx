@@ -49,6 +49,12 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
   const [blinkPosition, setBlinkPosition] = useState<{ x: number; y: number } | null>(null);
   const [showNextButton, setShowNextButton] = useState(false);
   
+  // File size tracking
+  const [imageSizeInfo, setImageSizeInfo] = useState<{
+    originalSize: number;
+    compressedSize: number;
+  } | null>(null);
+  
   const floorplanRef = useRef<HTMLImageElement>(null);
   
   const [newItem, setNewItem] = useState<NewItemForm>({
@@ -57,6 +63,7 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
     category: '',
     description: '',
     image: null,
+    imageFile: null,
     position: null,
     floorplanId: null
   });
@@ -258,6 +265,7 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
       position: null,
       floorplanId: null
     });
+    setImageSizeInfo(null);
     setCurrentStep('items-list');
     setShowNextButton(false);
     setBlinkPosition(null);
@@ -289,15 +297,27 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
         return;
       }
 
-      // Convert to base64 for preview
-      const base64 = await fileToBase64(file);
+      const originalSize = file.size;
+
+      // Validate and prepare the image
+      const imageResult = await validateAndPrepareImage(file, 'main');
+      
+      if (!imageResult.isValid) {
+        alert(`Image validation failed: ${imageResult.errors.join(', ')}`);
+        return;
+      }
+
+      const compressedSize = imageResult.compressionResult.compressedFile?.size || imageResult.compressionResult.compressedSize || 0;
       
       // Store both preview and File object for later compression
       setNewItem(prev => ({ 
         ...prev, 
-        image: base64,
-        imageFile: file
+        image: imageResult.base64,
+        imageFile: imageResult.compressionResult.compressedFile
       }));
+
+      // Set file size information
+      setImageSizeInfo({ originalSize, compressedSize });
       
     } catch (error) {
       console.error('Error uploading image:', error);
@@ -447,7 +467,7 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
             <div>
               <h1 className="text-xl font-semibold">{store.name}</h1>
               <p className="text-indigo-200 text-sm">
-                {currentStep === 'items-list' && 'Inventory Management'}
+                {currentStep === 'items-list' && 'Item Management'}
                 {currentStep === 'select-location' && 'Select Item Location'}
                 {currentStep === 'item-form' && 'Add New Item'}
               </p>
@@ -874,9 +894,18 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
                                 alt="Item preview"
                                 className="max-w-full max-h-48 mx-auto rounded-lg"
                               />
+                              {imageSizeInfo && (
+                                <div className="text-sm text-gray-600 space-y-1">
+                                  <div>Original size: {(imageSizeInfo.originalSize / 1024).toFixed(1)} KB</div>
+                                  <div>Compressed size: {(imageSizeInfo.compressedSize / 1024).toFixed(1)} KB</div>
+                                </div>
+                              )}
                               <button
                                 type="button"
-                                onClick={() => setNewItem(prev => ({ ...prev, image: null, imageFile: null }))}
+                                onClick={() => {
+                                  setNewItem(prev => ({ ...prev, image: null, imageFile: null }));
+                                  setImageSizeInfo(null);
+                                }}
                                 className="text-red-600 hover:text-red-700 text-sm"
                               >
                                 Remove Image

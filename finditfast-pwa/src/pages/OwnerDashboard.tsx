@@ -87,7 +87,7 @@ export const OwnerDashboard: React.FC = () => {
     },
     { 
       id: 'inventory', 
-      label: 'Inventory', 
+      label: 'Items', 
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -531,7 +531,7 @@ export const OwnerDashboard: React.FC = () => {
   // Handle editing a store
   // const handleEditStore = (store: any) => {
   //   setEditingStore(store);
-  //   // If it's a request, go to requests tab, otherwise go to inventory tab
+  //   // If it's a request, go to requests tab, otherwise go to items tab
   //   setActiveTab(store.type === 'request' ? 'requests' : 'inventory');
   // };
   
@@ -705,7 +705,7 @@ export const OwnerDashboard: React.FC = () => {
                       <h2 className="text-2xl font-bold text-gray-900">
                         Welcome back, {ownerProfile?.name || 'Store Owner'}!
                       </h2>
-                      <p className="text-gray-600 mt-1">Manage your store and inventory</p>
+                      <p className="text-gray-600 mt-1">Manage your store and items</p>
                     </div>
                     
                   </div>
@@ -770,7 +770,7 @@ export const OwnerDashboard: React.FC = () => {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                         </svg>
                       </div>
-                      <p className="text-sm font-medium text-gray-900">Manage Inventory</p>
+                      <p className="text-sm font-medium text-gray-900">Manage Items</p>
                     </div>
                   </button>
                 </div>

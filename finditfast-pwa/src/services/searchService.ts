@@ -11,16 +11,23 @@ export class SearchService {
    * Search for items across all stores
    */
   static async searchItems(query: string, userLocation?: { latitude: number; longitude: number }): Promise<SearchResult[]> {
+    console.log('🔍 [SEARCH SERVICE DEBUG] Starting search for:', query);
+    
     if (!query.trim()) {
+      console.log('❌ [SEARCH SERVICE DEBUG] Empty query, returning empty results');
       return [];
     }
 
     try {
       // Search for items using the existing search method
+      console.log('📋 [SEARCH SERVICE DEBUG] Calling ItemService.search...');
       const items = await ItemService.search(query.toLowerCase());
+      console.log('📋 [SEARCH SERVICE DEBUG] Items found by ItemService:', items.length);
       
       // Get all approved stores from storeRequests and transform to Store format
+      console.log('🏪 [SEARCH SERVICE DEBUG] Getting approved stores...');
       const storeRequests = await StoreService.getAll();
+      console.log('🏪 [SEARCH SERVICE DEBUG] Store requests found:', storeRequests.length);
       
       // Transform storeRequests to Store format and create lookup map
       const storeMap = new Map();
@@ -36,6 +43,8 @@ export class SearchService {
         };
         storeMap.set(storeRequest.id, store);
       });
+      
+      console.log('🗺️ [SEARCH SERVICE DEBUG] Store map created with', storeMap.size, 'stores');
 
       // Combine items with their store information
       const searchResults: SearchResult[] = items
@@ -48,8 +57,20 @@ export class SearchService {
           
           const store = storeMap.get(storeId);
           if (!store) {
+            console.log('⚠️ [SEARCH SERVICE DEBUG] No store found for item:', {
+              itemName: item.name,
+              originalStoreId: item.storeId,
+              cleanedStoreId: storeId,
+              availableStoreIds: Array.from(storeMap.keys()).slice(0, 5)
+            });
             return null;
           }
+
+          console.log('✅ [SEARCH SERVICE DEBUG] Item matched with store:', {
+            itemName: item.name,
+            storeName: store.name,
+            storeId: storeId
+          });
 
           let distance;
           if (userLocation) {
@@ -70,9 +91,12 @@ export class SearchService {
           return result;
         })
         .filter((result): result is SearchResult => result !== null);
+      
+      console.log('🎯 [SEARCH SERVICE DEBUG] Final search results:', searchResults.length);
 
       // Rank and sort results
       const rankedResults = this.rankSearchResults(searchResults);
+      console.log('📊 [SEARCH SERVICE DEBUG] Ranked results:', rankedResults.length);
 
       // Track search analytics
       try {
@@ -91,7 +115,7 @@ export class SearchService {
 
       return rankedResults;
     } catch (error) {
-      console.error('Search error:', error);
+      console.error('❌ [SEARCH SERVICE DEBUG] Search error:', error);
       throw new Error('Failed to search items. Please try again.');
     }
   }

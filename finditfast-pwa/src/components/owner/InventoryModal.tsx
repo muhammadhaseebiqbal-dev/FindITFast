@@ -48,6 +48,17 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
     x: 0,
     y: 0
   });
+  
+  // File size tracking state
+  const [itemImageSizeInfo, setItemImageSizeInfo] = useState<{
+    originalSize: number;
+    compressedSize: number;
+  } | null>(null);
+  
+  const [priceImageSizeInfo, setPriceImageSizeInfo] = useState<{
+    originalSize: number;
+    compressedSize: number;
+  } | null>(null);
 
   const floorplanRef = useRef<HTMLImageElement>(null);
   const itemImageRef = useRef<HTMLInputElement>(null);
@@ -111,16 +122,25 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
         throw new Error('Invalid image file. Please select a valid image under 5MB.');
       }
 
+      const originalSize = file.size;
+      console.log(`📁 [${type.toUpperCase()} IMAGE] Original size:`, (originalSize / 1024 / 1024).toFixed(2), 'MB');
+
       // Compress image
       const compressedFile = await compressImage(file, 800, 800, 0.7);
+      const compressedSize = compressedFile.size;
+      
+      console.log(`🗜️ [${type.toUpperCase()} IMAGE] Compressed size:`, (compressedSize / 1024 / 1024).toFixed(2), 'MB');
+      console.log(`📊 [${type.toUpperCase()} IMAGE] Compression ratio:`, ((1 - compressedSize / originalSize) * 100).toFixed(1) + '%');
       
       // Convert to base64
       const base64 = await fileToBase64(compressedFile);
       
       if (type === 'item') {
         setNewItem(prev => ({ ...prev, itemImage: base64 }));
+        setItemImageSizeInfo({ originalSize, compressedSize });
       } else {
         setNewItem(prev => ({ ...prev, priceImage: base64 }));
+        setPriceImageSizeInfo({ originalSize, compressedSize });
       }
     } catch (error) {
       console.error('Error processing image:', error);
@@ -182,6 +202,8 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
         x: 0,
         y: 0
       });
+      setItemImageSizeInfo(null);
+      setPriceImageSizeInfo(null);
       setNewPin(null);
       setShowAddForm(false);
 
@@ -222,7 +244,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
         <div className="flex items-center justify-between p-6 border-b">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">{store.name}</h2>
-            <p className="text-gray-600">Inventory Management - {storePlan.name}</p>
+            <p className="text-gray-600">Item Management - {storePlan.name}</p>
           </div>
           <button
             onClick={closeModal}
@@ -423,6 +445,22 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                           className="w-16 h-16 object-cover rounded mx-auto mb-2"
                         />
                         <p className="text-sm text-green-600">Photo uploaded</p>
+                        {itemImageSizeInfo && (
+                          <div className="mt-2 text-xs text-gray-600 space-y-1">
+                            <div className="flex justify-between">
+                              <span>Original:</span>
+                              <span className="font-medium">{(itemImageSizeInfo.originalSize / 1024 / 1024).toFixed(2)} MB</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Compressed:</span>
+                              <span className="font-medium text-green-600">{(itemImageSizeInfo.compressedSize / 1024 / 1024).toFixed(2)} MB</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Saved:</span>
+                              <span className="font-medium text-blue-600">{((1 - itemImageSizeInfo.compressedSize / itemImageSizeInfo.originalSize) * 100).toFixed(1)}%</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="text-center text-gray-500">
@@ -460,6 +498,22 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                           className="w-16 h-16 object-cover rounded mx-auto mb-2"
                         />
                         <p className="text-sm text-green-600">Price photo uploaded</p>
+                        {priceImageSizeInfo && (
+                          <div className="mt-2 text-xs text-gray-600 space-y-1">
+                            <div className="flex justify-between">
+                              <span>Original:</span>
+                              <span className="font-medium">{(priceImageSizeInfo.originalSize / 1024 / 1024).toFixed(2)} MB</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Compressed:</span>
+                              <span className="font-medium text-green-600">{(priceImageSizeInfo.compressedSize / 1024 / 1024).toFixed(2)} MB</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Saved:</span>
+                              <span className="font-medium text-blue-600">{((1 - priceImageSizeInfo.compressedSize / priceImageSizeInfo.originalSize) * 100).toFixed(1)}%</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="text-center text-gray-500">
@@ -494,6 +548,8 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                         x: 0,
                         y: 0
                       });
+                      setItemImageSizeInfo(null);
+                      setPriceImageSizeInfo(null);
                     }}
                     className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
                   >

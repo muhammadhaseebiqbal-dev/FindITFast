@@ -241,7 +241,7 @@ export const EnhancedInventoryManager: React.FC = () => {
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-lg text-gray-600">Loading your inventory...</p>
+          <p className="text-lg text-gray-600">Loading your items...</p>
         </div>
       </div>
     );
@@ -256,7 +256,7 @@ export const EnhancedInventoryManager: React.FC = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <h3 className="text-lg font-semibold text-red-800 mb-2">Error Loading Inventory</h3>
+          <h3 className="text-lg font-semibold text-red-800 mb-2">Error Loading Items</h3>
           <p className="text-red-600 mb-4">{error}</p>
           <button
             onClick={loadOwnerStores}
@@ -280,7 +280,7 @@ export const EnhancedInventoryManager: React.FC = () => {
           </div>
           <h3 className="text-xl font-semibold text-gray-900 mb-2">No Stores Available</h3>
           <p className="text-gray-600 mb-6">
-            You don't have any approved stores yet. Request a store to get started with inventory management.
+            You don't have any approved stores yet. Request a store to get started with item management.
           </p>
           <button
             onClick={() => window.location.href = '/owner/dashboard?tab=request-store'}
@@ -297,7 +297,7 @@ export const EnhancedInventoryManager: React.FC = () => {
     <div className="max-w-7xl mx-auto p-6">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Inventory Management</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Item Management</h1>
         <p className="text-gray-600">
           Manage items across your {stores.length} store{stores.length > 1 ? 's' : ''}
         </p>
@@ -316,7 +316,7 @@ export const EnhancedInventoryManager: React.FC = () => {
         ))}
       </div>
 
-      {/* Inventory Modal */}
+      {/* Items Modal */}
       {selectedInventory && (
         <InventoryModal
           store={selectedInventory.store}
@@ -325,7 +325,7 @@ export const EnhancedInventoryManager: React.FC = () => {
         />
       )}
 
-      {/* Full Screen Inventory */}
+      {/* Full Screen Items */}
       {selectedStore && (
         <FullScreenInventory
           store={selectedStore}

@@ -62,6 +62,56 @@ export const compressImage = (
 };
 
 /**
+ * Convert file to base64 data URL with Safari compatibility
+ * @param file - The image file
+ * @returns Promise<string> - Base64 data URL
+ */
+export const fileToBase64 = (file: File | Blob): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    // Validate input
+    if (!file || !(file instanceof File || file instanceof Blob)) {
+      reject(new Error('Invalid file input: Expected File or Blob object'));
+      return;
+    }
+
+    // Check if file is empty
+    if (file.size === 0) {
+      reject(new Error('File is empty'));
+      return;
+    }
+
+    const reader = new FileReader();
+    
+    reader.onload = (event) => {
+      try {
+        const result = event.target?.result;
+        if (typeof result === 'string') {
+          resolve(result);
+        } else {
+          reject(new Error('Failed to read file as data URL'));
+        }
+      } catch (error) {
+        reject(new Error(`FileReader error: ${error}`));
+      }
+    };
+    
+    reader.onerror = () => {
+      reject(new Error('Failed to read file'));
+    };
+    
+    reader.onabort = () => {
+      reject(new Error('File reading was aborted'));
+    };
+
+    try {
+      reader.readAsDataURL(file);
+    } catch (error) {
+      reject(new Error(`Failed to start reading file: ${error}`));
+    }
+  });
+};
+
+/**
  * Validate image file type and size
  * @param file - The file to validate
  * @param maxSizeInMB - Maximum file size in MB (default: 10)
@@ -103,20 +153,6 @@ export const getImageDimensions = (file: File): Promise<{width: number, height: 
  */
 export const createThumbnail = (file: File, size: number = 150): Promise<File> => {
   return compressImage(file, size, size, 0.8);
-};
-
-/**
- * Convert image file to base64 data URL
- * @param file - The image file
- * @returns Promise<string> - Base64 data URL
- */
-export const fileToBase64 = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.readAsDataURL(file);
-  });
 };
 
 /**

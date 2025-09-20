@@ -42,6 +42,12 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
     position: null,
     floorplanId: null
   });
+  
+  // File size tracking state
+  const [imageSizeInfo, setImageSizeInfo] = useState<{
+    originalSize: number;
+    compressedSize: number;
+  } | null>(null);
 
   // Load items and store plans on component mount
   useEffect(() => {
@@ -106,6 +112,7 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
       position: null,
       floorplanId: null
     });
+    setImageSizeInfo(null);
     setCurrentStep('items-list');
   };
 
@@ -153,13 +160,22 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
 
   const handleImageUpload = async (file: File, type: 'item' | 'price') => {
     try {
+      console.log('🖼️ [DEBUG] handleImageUpload called with file:', file.name, 'size:', file.size);
+      
       if (!validateImageFile(file, 5)) {
         alert('Please select a valid image file (max 5MB)');
         return;
       }
 
+      const originalSize = file.size;
+      console.log(`📁 [ITEM IMAGE] Original size:`, (originalSize / 1024 / 1024).toFixed(2), 'MB');
+
       // Compress the image
       const compressedFile = await compressImage(file, 800, 800, 0.7);
+      const compressedSize = compressedFile.size;
+      
+      console.log(`🗜️ [ITEM IMAGE] Compressed size:`, (compressedSize / 1024 / 1024).toFixed(2), 'MB');
+      console.log(`📊 [ITEM IMAGE] Compression ratio:`, ((1 - compressedSize / originalSize) * 100).toFixed(1) + '%');
       
       // Convert to base64
       const base64 = await fileToBase64(compressedFile);
@@ -168,6 +184,12 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
         ...prev, 
         image: base64
       }));
+      
+      const sizeInfo = { originalSize, compressedSize };
+      console.log('📋 [DEBUG] Setting imageSizeInfo:', sizeInfo);
+      setImageSizeInfo(sizeInfo);
+      
+      console.log('✅ [DEBUG] Image upload complete, should show size info now');
     } catch (error) {
       console.error('Error uploading image:', error);
       alert('Error uploading image. Please try again.');
@@ -204,7 +226,7 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
             <div>
               <h1 className="text-xl font-bold">{store.name}</h1>
               <p className="text-indigo-200 text-sm">
-                {currentStep === 'items-list' && 'Inventory Management'}
+                {currentStep === 'items-list' && 'Item Management'}
                 {currentStep === 'select-location' && 'Select Item Location'}
                 {currentStep === 'item-form' && 'Add New Item'}
               </p>
@@ -292,7 +314,7 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
                       <p className="text-gray-600 mb-4">
                         {searchQuery || filterCategory !== 'all' 
                           ? 'No items match your search criteria'
-                          : 'Start adding items to your inventory'
+                          : 'Start adding items to your store'
                         }
                       </p>
                       <button
@@ -530,8 +552,27 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
                                   alt="Item preview"
                                   className="max-w-full h-32 object-contain mx-auto rounded-lg"
                                 />
+                                {imageSizeInfo && (
+                                  <div className="text-xs text-gray-600 space-y-1 bg-gray-50 p-3 rounded-lg">
+                                    <div className="flex justify-between">
+                                      <span>Original:</span>
+                                      <span className="font-medium">{(imageSizeInfo.originalSize / 1024 / 1024).toFixed(2)} MB</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span>Compressed:</span>
+                                      <span className="font-medium text-green-600">{(imageSizeInfo.compressedSize / 1024 / 1024).toFixed(2)} MB</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span>Saved:</span>
+                                      <span className="font-medium text-blue-600">{((1 - imageSizeInfo.compressedSize / imageSizeInfo.originalSize) * 100).toFixed(1)}%</span>
+                                    </div>
+                                  </div>
+                                )}
                                 <button
-                                  onClick={() => setNewItem(prev => ({ ...prev, image: null }))}
+                                  onClick={() => {
+                                    setNewItem(prev => ({ ...prev, image: null }));
+                                    setImageSizeInfo(null);
+                                  }}
                                   className="text-red-600 hover:text-red-800 text-sm font-medium"
                                 >
                                   Remove Image
@@ -556,6 +597,26 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
                                 >
                                   Choose Image
                                 </label>
+                                
+                                {/* File Size Information - Debug: imageSizeInfo should show here when set */}
+                                {imageSizeInfo && (
+                                  <div className="mt-3 space-y-1">
+                                    <div className="flex justify-between items-center text-sm text-gray-600">
+                                      <span>Original size:</span>
+                                      <span className="font-medium">{(imageSizeInfo.originalSize / 1024).toFixed(1)} KB</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm text-gray-600">
+                                      <span>Compressed size:</span>
+                                      <span className="font-medium text-green-600">{(imageSizeInfo.compressedSize / 1024).toFixed(1)} KB</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm text-gray-500">
+                                      <span>Compression ratio:</span>
+                                      <span className="font-medium text-blue-600">
+                                        {((1 - imageSizeInfo.compressedSize / imageSizeInfo.originalSize) * 100).toFixed(1)}% smaller
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>

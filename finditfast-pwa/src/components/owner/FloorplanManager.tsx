@@ -471,17 +471,7 @@ export const FloorplanManager: React.FC = () => {
                                       )}
                                     </button>
                                   )}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      const storeId = (request as any).storeId || store?.id || `temp_${request.id}`;
-                                      setInventoryManagerOpen({ storePlan: floorplan, storeId });
-                                    }}
-                                    className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded hover:bg-green-200 transition-colors"
-                                    title="Manage inventory for this floorplan"
-                                  >
-                                    Manage Items
-                                  </button>
+                                  
                                   <button
                                     onClick={async (e) => {
                                       e.stopPropagation();
@@ -553,7 +543,7 @@ export const FloorplanManager: React.FC = () => {
         </div>
       </div>
 
-      {/* Inventory Manager Modal */}
+      {/* Items Manager Modal */}
       {inventoryManagerOpen && (
         <InventoryManager
           storePlan={inventoryManagerOpen.storePlan}

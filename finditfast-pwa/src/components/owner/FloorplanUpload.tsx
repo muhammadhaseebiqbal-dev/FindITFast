@@ -23,6 +23,11 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [fileSizeInfo, setFileSizeInfo] = useState<{
+    originalSize: number;
+    compressedSize: number;
+    compressionRatio: number;
+  } | null>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
@@ -34,6 +39,7 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
     setError(null);
     setSelectedFile(null);
     setPreviewUrl(null);
+    setFileSizeInfo(null);
 
     // Validate file
     if (!validateImageFile(file, 10)) {
@@ -143,6 +149,14 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
         compressedSize: `${(validation.compressionResult.compressedSize / 1024).toFixed(2)} KB`,
         compressionRatio: `${validation.compressionResult.compressionRatio.toFixed(1)}%`
       });
+      
+      // Store size information for UI display
+      setFileSizeInfo({
+        originalSize: validation.compressionResult.originalSize,
+        compressedSize: validation.compressionResult.compressedSize,
+        compressionRatio: validation.compressionResult.compressionRatio
+      });
+      
       const base64Data = validation.base64;
       
       setUploadProgress(75);
@@ -186,6 +200,7 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
       setSelectedFile(null);
       setPreviewUrl(null);
       setUploadProgress(0);
+      setFileSizeInfo(null);
       
       if (cameraInputRef.current) {
         cameraInputRef.current.value = '';
@@ -223,6 +238,7 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
     setPreviewUrl(null);
     setError(null);
     setUploadProgress(0);
+    setFileSizeInfo(null);
     
     if (cameraInputRef.current) {
       cameraInputRef.current.value = '';
@@ -328,6 +344,35 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
                 alt="Floorplan preview"
                 className="w-full max-w-md h-48 object-cover rounded-lg border"
               />
+            </div>
+            
+            {/* File Size Information */}
+            <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                <div>
+                  <span className="text-gray-600">Original size:</span>
+                  <span className="ml-2 font-medium text-gray-900">
+                    {selectedFile ? `${(selectedFile.size / 1024).toFixed(2)} KB` : 'Unknown'}
+                  </span>
+                </div>
+                {fileSizeInfo && (
+                  <>
+                    <div>
+                      <span className="text-gray-600">Compressed size:</span>
+                      <span className="ml-2 font-medium text-green-600">
+                        {(fileSizeInfo.compressedSize / 1024).toFixed(2)} KB
+                      </span>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <span className="text-gray-600">Space saved:</span>
+                      <span className="ml-2 font-medium text-blue-600">
+                        {((fileSizeInfo.originalSize - fileSizeInfo.compressedSize) / 1024).toFixed(2)} KB 
+                        ({(100 - fileSizeInfo.compressionRatio).toFixed(1)}% reduction)
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 

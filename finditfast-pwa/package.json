@@ -19,7 +19,8 @@
     "test:demo": "node scripts/demo-populate.js",
     "test:store-request": "node scripts/create-test-store-request.js",
     "demo:inventory": "node scripts/create-enhanced-inventory-demo.js",
-    "admin:create": "node scripts/create-app-admin.js"
+    "admin:create": "node scripts/create-app-admin.js",
+    "generate-icons": "node scripts/generate-pwa-icons.js"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.11",

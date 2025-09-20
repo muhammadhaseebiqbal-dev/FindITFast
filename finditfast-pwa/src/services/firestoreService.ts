@@ -98,7 +98,18 @@ export class FirestoreService {
 
 // Specific service methods for each collection
 export const StoreService = {
-  getAll: () => FirestoreService.getCollection<Store>('storeRequests', [where('status', '==', 'approved'), where('deleted', '!=', true)]),
+  getAll: async (): Promise<Store[]> => {
+    console.log('🏪 [STORE SERVICE DEBUG] Getting approved stores...');
+    // Get approved stores and filter out deleted ones client-side
+    const allApprovedStores = await FirestoreService.getCollection<Store & { deleted?: boolean }>('storeRequests', [where('status', '==', 'approved')]);
+    console.log('🏪 [STORE SERVICE DEBUG] Found approved stores before filtering:', allApprovedStores.length);
+    
+    // Filter out deleted stores client-side
+    const activeStores = allApprovedStores.filter(store => !store.deleted);
+    console.log('🏪 [STORE SERVICE DEBUG] Active stores after filtering:', activeStores.length);
+    
+    return activeStores;
+  },
   getById: async (id: string): Promise<Store | null> => {
     const store = await FirestoreService.getDocument<Store & { deleted?: boolean }>('storeRequests', id);
     // Return null if store is deleted or doesn't exist
@@ -107,19 +118,22 @@ export const StoreService = {
     }
     return store;
   },
-  getByOwner: (ownerId: string) =>
-    FirestoreService.getCollection<Store>('storeRequests', [
+  getByOwner: async (ownerId: string): Promise<Store[]> => {
+    const allOwnerStores = await FirestoreService.getCollection<Store & { deleted?: boolean }>('storeRequests', [
       where('ownerId', '==', ownerId), 
-      where('status', '==', 'approved'),
-      where('deleted', '!=', true)
-    ]),
-  getNearby: (_latitude: number, _longitude: number, _radiusKm: number = 50) => {
+      where('status', '==', 'approved')
+    ]);
+    // Filter out deleted stores client-side
+    return allOwnerStores.filter(store => !store.deleted);
+  },
+  getNearby: async (_latitude: number, _longitude: number, _radiusKm: number = 50): Promise<Store[]> => {
     // Note: For production, consider using GeoFirestore for more accurate geospatial queries
     // This is a simplified implementation that gets approved stores
-    return FirestoreService.getCollection<Store>('storeRequests', [
-      where('status', '==', 'approved'),
-      where('deleted', '!=', true)
+    const allApprovedStores = await FirestoreService.getCollection<Store & { deleted?: boolean }>('storeRequests', [
+      where('status', '==', 'approved')
     ]);
+    // Filter out deleted stores client-side
+    return allApprovedStores.filter(store => !store.deleted);
   },
   create: (store: Omit<Store, 'id'>) => FirestoreService.addDocument<Store>('storeRequests', store),
   update: async (id: string, data: Partial<Store>) => {
@@ -180,17 +194,51 @@ export const ItemService = {
     return items;
   },
   search: async (searchTerm: string) => {
+    console.log('🔍 [SEARCH DEBUG] Starting search for:', searchTerm);
+    
     // Get all items for fuzzy search (Firestore doesn't support full-text search)
     const allItems = await FirestoreService.getCollection<Item>('items');
+    console.log('📋 [SEARCH DEBUG] Total items in database:', allItems.length);
+    
+    if (allItems.length > 0) {
+      console.log('📋 [SEARCH DEBUG] Sample items:', allItems.slice(0, 3).map(item => ({
+        id: item.id,
+        name: item.name,
+        category: item.category,
+        storeId: item.storeId,
+        deleted: item.deleted
+      })));
+    }
+    
     const searchLower = searchTerm.toLowerCase().trim();
     
     // Filter items that contain the search term in name or description
     const matchingItems = allItems.filter(item => {
+      // Skip deleted items
+      if (item.deleted) {
+        return false;
+      }
+      
       const nameMatch = item.name?.toLowerCase().includes(searchLower);
       const descMatch = item.description?.toLowerCase().includes(searchLower);
       const categoryMatch = item.category?.toLowerCase().includes(searchLower);
-      return nameMatch || descMatch || categoryMatch;
+      const matches = nameMatch || descMatch || categoryMatch;
+      
+      if (matches) {
+        console.log('✅ [SEARCH DEBUG] Found matching item:', {
+          name: item.name,
+          category: item.category,
+          storeId: item.storeId,
+          nameMatch,
+          descMatch,
+          categoryMatch
+        });
+      }
+      
+      return matches;
     });
+    
+    console.log('🎯 [SEARCH DEBUG] Matching items found:', matchingItems.length);
 
     // Sort by relevance: exact matches first, then verified items, then by name
     return matchingItems.sort((a, b) => {

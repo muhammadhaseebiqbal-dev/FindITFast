@@ -1472,7 +1472,7 @@ export const AdminDashboard: React.FC = () => {
                     <li>• The store owner account ({deleteOwnerConfirm.ownerEmail})</li>
                     <li>• All stores owned by this user</li>
                     <li>• All store requests submitted by this user</li>
-                    <li>• All inventory items in their stores</li>
+                    <li>• All store items in their stores</li>
                   </ul>
                 </div>
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">

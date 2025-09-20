@@ -297,7 +297,7 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
             <div>
               <h1 className="text-xl font-semibold">{store.name}</h1>
               <p className="text-indigo-200 text-sm">
-                {currentStep === 'items-list' && 'Inventory Management'}
+                {currentStep === 'items-list' && 'Item Management'}
                 {currentStep === 'select-location' && 'Select Item Location'}
                 {currentStep === 'item-form' && 'Add New Item'}
               </p>
